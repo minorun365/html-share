@@ -238,11 +238,6 @@ body.searching.has-query #search-clear { display: flex; }
 }
 .th { display: flex; align-items: center; gap: .55rem; padding: .7rem 1.05rem .55rem; }
 .tname { font-size: .9rem; font-weight: 700; letter-spacing: .01em; color: var(--blue-deep); }
-.tunread {
-  padding: .1rem .45rem; border: 1px solid #f0dca5; border-radius: 999px;
-  background: var(--gold-soft); color: var(--gold-deep);
-  font-size: .67rem; font-weight: 700; letter-spacing: .02em;
-}
 .tcount { font-size: .72rem; color: var(--mut); }
 .tlast {
   margin-left: auto; font-size: .72rem; color: var(--mut);
@@ -352,15 +347,30 @@ body.page-open #page-actions { display: block; }
 #home-btn:hover, #page-more:hover { background: var(--panel); color: var(--ink); }
 #home-btn svg { width: 1.2rem; height: 1.2rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 #page-more svg { width: 1.15rem; height: 1.15rem; fill: currentColor; }
+#page-popover-dismiss {
+  position: fixed; inset: 0; z-index: 29;
+  background: transparent;
+}
 #page-menu,
-#page-share-panel {
+#page-share-panel,
+#page-share-toast {
   position: absolute; top: calc(100% + .45rem); right: 0;
   border: 1px solid rgba(28, 35, 51, .10); border-radius: 1rem;
   background: rgba(255, 255, 255, .92); box-shadow: var(--shadow);
   backdrop-filter: blur(26px) saturate(180%); -webkit-backdrop-filter: blur(26px) saturate(180%);
 }
-#page-menu[hidden], #page-share-panel[hidden] { display: none; }
+#page-menu[hidden], #page-share-panel[hidden], #page-share-toast[hidden] { display: none; }
 #page-menu { width: 15rem; padding: .38rem; }
+#page-share-toast {
+  width: min(18rem, calc(100vw - 1.1rem));
+  padding: .7rem .85rem;
+  color: var(--ink); font-size: .82rem; line-height: 1.4;
+}
+#page-share-toast strong { display: block; font-weight: 650; }
+#page-share-toast .toast-meta {
+  display: block; margin-top: .15rem;
+  color: var(--mut); font-size: .72rem; font-weight: 400;
+}
 .page-action {
   width: 100%; min-height: 2.75rem; padding: .55rem .7rem;
   display: flex; align-items: center; gap: .7rem;
@@ -488,7 +498,7 @@ body.page-controls-hidden #page-actions {
   }
 }
 @media (prefers-reduced-transparency: reduce) {
-  #home-btn, #page-more, #page-menu, #page-share-panel {
+  #home-btn, #page-more, #page-menu, #page-share-panel, #page-share-toast {
     background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none;
   }
 }
@@ -537,11 +547,12 @@ body.page-controls-hidden #page-actions {
   </main>
 </div>
 
+<div id="page-popover-dismiss" hidden></div>
 <button id="home-btn" type="button" aria-label="トップへ戻る" title="トップへ戻る">
   <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7M6.4 9.6V19h11.2V9.6"/></svg>
 </button>
 <div id="page-actions">
-  <button id="page-more" type="button" aria-label="ページ操作を開く" aria-expanded="false">
+  <button id="page-more" type="button" aria-label="ページ操作を開く" aria-haspopup="menu" aria-expanded="false" aria-controls="page-menu">
     <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
   </button>
   <div id="page-menu" role="menu" aria-label="ページ操作" hidden>
@@ -566,6 +577,10 @@ body.page-controls-hidden #page-actions {
     <label>有効日数<select id="page-share-days"><option>1</option><option>3</option><option selected>7</option><option>14</option><option>30</option><option>90</option></select></label>
     <button id="page-share-issue" type="button">発行してコピー</button>
   </div>
+  <div id="page-share-toast" role="status" hidden>
+    <strong>コピーしました</strong>
+    <span class="toast-meta"></span>
+  </div>
 </div>
 
 <script>
@@ -575,7 +590,9 @@ body.page-controls-hidden #page-actions {
   const searchBox = $('search'), searchToggle = $('search-toggle'), searchClear = $('search-clear');
   const refresh = $('refresh'), pageRefresh = $('page-refresh');
   const pageMore = $('page-more'), pageMenu = $('page-menu'), pageSharePanel = $('page-share-panel');
+  const pageShareToast = $('page-share-toast'), pagePopoverDismiss = $('page-popover-dismiss');
   const pageStar = $('page-star'), pageUnread = $('page-unread'), pageShare = $('page-share'), pageDelete = $('page-delete'), pageShareIssue = $('page-share-issue');
+  let shareToastTimer = 0;
   const trashToggle = $('trash-toggle'), trashLabel = $('trash-label');
   const STAR_KEY = 'mb_starred_pages';
   const HIDDEN_KEY = 'mb_hidden_pages';
@@ -591,7 +608,7 @@ body.page-controls-hidden #page-actions {
   let filterText = '';
   let preferenceSaveTimer = null;
   // テーマ内で最初に見せる件数と、「他N件を表示」で開いたテーマのキー
-  const STREAM_PREVIEW = 3;
+  const STREAM_PREVIEW = 4;
   const expandedStreams = new Set();
 
   try {
@@ -934,13 +951,6 @@ body.page-controls-hidden #page-actions {
     name.textContent = stream.label;
     head.append(name);
 
-    const unread = stream.pages.filter(isNew).length;
-    if (unread > 0) {
-      const badge = document.createElement('span');
-      badge.className = 'tunread';
-      badge.textContent = `未読 ${unread}`;
-      head.append(badge);
-    }
     const count = document.createElement('span');
     count.className = 'tcount';
     count.textContent = `${stream.pages.length}件`;
@@ -1106,14 +1116,17 @@ body.page-controls-hidden #page-actions {
   }
 
   function setPageControlsHidden(hidden) {
-    if (!pageMenu.hidden || !pageSharePanel.hidden) hidden = false;
+    if (!pageMenu.hidden || !pageSharePanel.hidden || !pageShareToast.hidden) hidden = false;
     document.body.classList.toggle('page-controls-hidden', hidden);
   }
 
   function closePagePopovers() {
     pageMenu.hidden = true;
     pageSharePanel.hidden = true;
+    pageShareToast.hidden = true;
+    pagePopoverDismiss.hidden = true;
     pageMore.setAttribute('aria-expanded', 'false');
+    clearTimeout(shareToastTimer);
   }
 
   function syncPageMenu() {
@@ -1201,11 +1214,13 @@ body.page-controls-hidden #page-actions {
   refresh.addEventListener('click', refreshApp);
   pageRefresh.addEventListener('click', refreshApp);
   pageMore.addEventListener('click', () => {
-    const willOpen = pageMenu.hidden;
+    const willOpen = pageMenu.hidden && pageSharePanel.hidden;
     closePagePopovers();
+    if (!willOpen) return;
     syncPageMenu();
-    pageMenu.hidden = !willOpen;
-    pageMore.setAttribute('aria-expanded', String(willOpen));
+    pageMenu.hidden = false;
+    pagePopoverDismiss.hidden = false;
+    pageMore.setAttribute('aria-expanded', 'true');
     setPageControlsHidden(false);
   });
   pageStar.addEventListener('click', () => {
@@ -1222,6 +1237,8 @@ body.page-controls-hidden #page-actions {
   pageShare.addEventListener('click', () => {
     pageMenu.hidden = true;
     pageSharePanel.hidden = false;
+    pageShareToast.hidden = true;
+    pagePopoverDismiss.hidden = false;
     pageMore.setAttribute('aria-expanded', 'true');
   });
   pageDelete.addEventListener('click', () => {
@@ -1249,17 +1266,20 @@ body.page-controls-hidden #page-actions {
       const expires = new Date(expiresAt * 1000).toLocaleString('ja-JP', {
         timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
       });
-      pageShareIssue.textContent = '✓ コピーしました';
-      pageShareIssue.title = `${expires}まで有効`;
+      pageSharePanel.hidden = true;
+      pageMore.setAttribute('aria-expanded', 'false');
+      pageShareToast.querySelector('.toast-meta').textContent = `${expires}まで有効`;
+      pageShareToast.hidden = false;
+      pagePopoverDismiss.hidden = false;
+      clearTimeout(shareToastTimer);
+      shareToastTimer = setTimeout(closePagePopovers, 2500);
     } catch (error) {
       console.error(error);
       pageShareIssue.textContent = generatedUrl ? 'URLを表示しました' : '発行できませんでした';
       if (generatedUrl) prompt('このURLをコピーしてください', generatedUrl);
     } finally {
-      setTimeout(() => {
-        pageShareIssue.disabled = false;
-        pageShareIssue.textContent = '発行してコピー';
-      }, 2200);
+      pageShareIssue.disabled = false;
+      pageShareIssue.textContent = '発行してコピー';
     }
   });
   trashToggle.addEventListener('click', () => {
@@ -1268,8 +1288,15 @@ body.page-controls-hidden #page-actions {
     renderHome();
   });
   frame.addEventListener('load', watchFrameScroll);
+  pagePopoverDismiss.addEventListener('pointerdown', closePagePopovers);
   document.addEventListener('pointerdown', (event) => {
-    if ($('page-actions').contains(event.target)) return;
+    if ($('page-actions').contains(event.target) || event.target === pagePopoverDismiss) return;
+    closePagePopovers();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (pageMenu.hidden && pageSharePanel.hidden && pageShareToast.hidden) return;
+    event.preventDefault();
     closePagePopovers();
   });
 

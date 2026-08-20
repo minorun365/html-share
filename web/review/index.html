@@ -157,11 +157,14 @@ main {
    案件が増えても手入れが要らない。自由入力もできるプルダウンとして、入力欄＋▼＋候補リストを
    自前で持つ（datalist はiOS Safariだと▼が出ず、候補があること自体に気づけない） */
 .compose-target-wrap { position: relative; margin-top: .5rem; }
+/* ⚠️ font-size は 16px（1rem）を下回らせない。iOS Safari は 16px 未満の入力欄に
+   フォーカスすると、読めるようにページごと勝手に拡大する（戻すにはピンチ操作が要る）。
+   補助的な欄なので小さくしたくなるが、小ささは padding で作る */
 .compose-target {
   display: block; width: 100%;
   border: 1px solid var(--line); border-radius: .65rem;
-  padding: .5rem 2.5rem .5rem .7rem;
-  color: var(--ink); background: var(--white); font: inherit; font-size: .86rem;
+  padding: .45rem 2.5rem .45rem .7rem;
+  color: var(--ink); background: var(--white); font: inherit; font-size: 1rem;
 }
 .compose-target:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
 /* ⚠️ .target-open / .target-option には必ず .compose を前に付ける。下の `.compose button`
@@ -190,7 +193,7 @@ main {
 .compose .target-option {
   display: block; width: 100%; min-height: 2.4rem; padding: .45rem .7rem;
   border: 0; border-radius: .5rem; background: transparent;
-  color: var(--ink); font: inherit; font-size: .86rem; font-weight: 400;
+  color: var(--ink); font: inherit; font-size: 1rem; font-weight: 400;
   text-align: left; cursor: pointer;
 }
 .compose .target-option:hover { background: var(--soft); }

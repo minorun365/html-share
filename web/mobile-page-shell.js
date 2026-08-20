@@ -77,9 +77,14 @@
       .tool.more svg { fill: currentColor; stroke: none; }
       .tool:active { transform: scale(.94); }
       /* display を持つ要素は hidden 属性だけでは隠れないので、明示的に落とす */
-      .action-menu[hidden], .share-panel[hidden] { display: none; }
+      .action-menu[hidden], .share-panel[hidden], .share-toast[hidden], .popover-dismiss[hidden] { display: none; }
+      .popover-dismiss {
+        position: fixed; inset: 0; z-index: 2147483002;
+        background: transparent;
+      }
       .action-menu,
-      .share-panel {
+      .share-panel,
+      .share-toast {
         position: fixed;
         z-index: 2147483003;
         top: calc(3.65rem + env(safe-area-inset-top, 0px));
@@ -120,8 +125,19 @@
       }
       .issue { grid-column: 1 / -1; border-color: var(--blue); background: var(--blue); color: #fff; font-weight: 600; }
       .issue:disabled { opacity: .72; }
+      .share-toast {
+        width: min(18rem, calc(100vw - 1.1rem));
+        padding: .7rem .85rem;
+        color: var(--ink); font-size: .82rem; line-height: 1.4;
+        border-radius: 1rem;
+      }
+      .share-toast strong { display: block; font-weight: 650; }
+      .share-toast .toast-meta {
+        display: block; margin-top: .15rem;
+        color: var(--mut); font-size: .72rem; font-weight: 400;
+      }
       @media (prefers-reduced-transparency: reduce) {
-        .tool, .action-menu, .share-panel { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
+        .tool, .action-menu, .share-panel, .share-toast { background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none; }
       }
       @media (prefers-reduced-motion: reduce) {
         .toolbar { transition: none; }
@@ -131,11 +147,12 @@
       <button class="tool nav" type="button" aria-label="トップへ戻る" title="トップへ戻る">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7M6.4 9.6V19h11.2V9.6"/></svg>
       </button>
-      <button class="tool more" type="button" aria-label="ページ操作を開く" aria-expanded="false">
+      <button class="tool more" type="button" aria-label="ページ操作を開く" aria-haspopup="menu" aria-expanded="false" aria-controls="page-menu">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="19" cy="12" r="1.7"/></svg>
       </button>
     </div>
-    <div class="action-menu" role="menu" aria-label="ページ操作" hidden>
+    <div class="popover-dismiss" hidden></div>
+    <div class="action-menu" id="page-menu" role="menu" aria-label="ページ操作" hidden>
       <button class="action star-action" type="button" role="menuitem" disabled>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1.1 6.2-5.6-2.9-5.6 2.9 1.1-6.2L3 9.6l6.2-.9L12 3Z"/></svg><span>スターを付ける</span>
       </button>
@@ -157,6 +174,10 @@
       <label>有効日数<select class="days"><option>1</option><option>3</option><option selected>7</option><option>14</option><option>30</option><option>90</option></select></label>
       <button class="issue" type="button">発行してコピー</button>
     </div>
+    <div class="share-toast" role="status" hidden>
+      <strong>コピーしました</strong>
+      <span class="toast-meta"></span>
+    </div>
   `;
 
   const $ = (selector) => root.querySelector(selector);
@@ -165,7 +186,10 @@
   const more = $('.more');
   const actionMenu = $('.action-menu');
   const sharePanel = $('.share-panel');
+  const shareToast = $('.share-toast');
+  const popoverDismiss = $('.popover-dismiss');
   const issue = $('.issue');
+  let shareToastTimer = 0;
   const STAR_KEY = 'mb_starred_pages';
   const HIDDEN_KEY = 'mb_hidden_pages';
   const READ_KEY = 'mb_read_marks';
@@ -250,14 +274,17 @@
   }
 
   function setToolbarHidden(hidden) {
-    if (!actionMenu.hidden || !sharePanel.hidden) hidden = false;
+    if (!actionMenu.hidden || !sharePanel.hidden || !shareToast.hidden) hidden = false;
     toolbar.classList.toggle('reading', hidden);
   }
 
   function closePopovers() {
     actionMenu.hidden = true;
     sharePanel.hidden = true;
+    shareToast.hidden = true;
+    popoverDismiss.hidden = true;
     more.setAttribute('aria-expanded', 'false');
+    clearTimeout(shareToastTimer);
   }
 
   function syncMenu() {
@@ -272,11 +299,13 @@
   nav.addEventListener('click', () => { location.href = '/app/index.html'; });
 
   more.addEventListener('click', () => {
-    const willOpen = actionMenu.hidden;
+    const willOpen = actionMenu.hidden && sharePanel.hidden;
     closePopovers();
+    if (!willOpen) return;
     syncMenu();
-    actionMenu.hidden = !willOpen;
-    more.setAttribute('aria-expanded', String(willOpen));
+    actionMenu.hidden = false;
+    popoverDismiss.hidden = false;
+    more.setAttribute('aria-expanded', 'true');
     setToolbarHidden(false);
   });
   $('.star-action').addEventListener('click', async () => {
@@ -316,6 +345,8 @@
   $('.share').addEventListener('click', () => {
     actionMenu.hidden = true;
     sharePanel.hidden = false;
+    shareToast.hidden = true;
+    popoverDismiss.hidden = false;
     more.setAttribute('aria-expanded', 'true');
   });
   $('.delete').addEventListener('click', async () => {
@@ -362,21 +393,35 @@
       if (!response.ok || !payload.url) throw new Error(payload.error ?? '共有URLを発行できませんでした');
       generatedUrl = payload.url;
       await navigator.clipboard.writeText(generatedUrl);
-      issue.textContent = '✓ コピーしました';
+      const expires = new Date(payload.expiresAt * 1000).toLocaleString('ja-JP', {
+        timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit',
+      });
+      sharePanel.hidden = true;
+      more.setAttribute('aria-expanded', 'false');
+      shareToast.querySelector('.toast-meta').textContent = `${expires}まで有効`;
+      shareToast.hidden = false;
+      popoverDismiss.hidden = false;
+      clearTimeout(shareToastTimer);
+      shareToastTimer = setTimeout(closePopovers, 2500);
     } catch (error) {
       console.error(error);
       issue.textContent = generatedUrl ? 'URLを表示しました' : '発行できませんでした';
       if (generatedUrl) prompt('このURLをコピーしてください', generatedUrl);
     } finally {
-      setTimeout(() => {
-        issue.disabled = false;
-        issue.textContent = '発行してコピー';
-      }, 2200);
+      issue.disabled = false;
+      issue.textContent = '発行してコピー';
     }
   });
 
+  popoverDismiss.addEventListener('pointerdown', closePopovers);
   document.addEventListener('pointerdown', (event) => {
     if (event.composedPath().includes(host)) return;
+    closePopovers();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    if (actionMenu.hidden && sharePanel.hidden && shareToast.hidden) return;
+    event.preventDefault();
     closePopovers();
   });
   addEventListener('scroll', () => {

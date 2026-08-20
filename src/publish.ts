@@ -4,7 +4,8 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BuildManifest, BuiltPage } from './bundle.js';
@@ -61,28 +62,53 @@ function copyConsole(buildRoot: string, manifest: object): void {
   }, null, 2)}\n`);
 }
 
-async function emptyBucket(client: S3Client, bucket: string): Promise<void> {
+/** バケットにいま入っているオブジェクトを Key → ETag で集める */
+async function remoteObjects(client: S3Client, bucket: string): Promise<Map<string, string>> {
+  const objects = new Map<string, string>();
   let continuationToken: string | undefined;
   do {
     const listed = await client.send(new ListObjectsV2Command({ Bucket: bucket, ContinuationToken: continuationToken }));
-    const objects = (listed.Contents ?? []).flatMap((item) => item.Key ? [{ Key: item.Key }] : []);
-    if (objects.length) await client.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: objects } }));
+    for (const item of listed.Contents ?? []) {
+      if (item.Key) objects.set(item.Key, (item.ETag ?? '').replace(/"/g, ''));
+    }
     continuationToken = listed.NextContinuationToken;
   } while (continuationToken);
+  return objects;
 }
 
-async function uploadTree(client: S3Client, bucket: string, root: string): Promise<void> {
-  await emptyBucket(client, bucket);
+async function deleteKeys(client: S3Client, bucket: string, keys: string[]): Promise<void> {
+  for (let index = 0; index < keys.length; index += 1000) {
+    const batch = keys.slice(index, index + 1000).map((Key) => ({ Key }));
+    await client.send(new DeleteObjectsCommand({ Bucket: bucket, Delete: { Objects: batch } }));
+  }
+}
+
+/**
+ * ローカルの生成物とバケットの中身を突き合わせ、変わったものだけ送る。
+ *
+ *   毎回まるごと消して上げ直すと、1ページ直しただけでもサイト全体が
+ *   上がり直す。ページ数が増えるほど publish の待ち時間そのものになるので、
+ *   中身のハッシュで比べて差分だけを送り、消えたものだけを消す。
+ *   バケットは SSE-S3 なので、単一パートで上げた分の ETag は中身の MD5 と一致する。
+ */
+async function syncTree(client: S3Client, bucket: string, root: string): Promise<void> {
+  const remote = await remoteObjects(client, bucket);
+  const kept = new Set<string>();
   for (const relative of files(root)) {
     const file = path.join(root, relative);
+    const key = relative.split(path.sep).join('/');
+    kept.add(key);
+    const body = readFileSync(file);
+    if (remote.get(key) === createHash('md5').update(body).digest('hex')) continue;
     await client.send(new PutObjectCommand({
       Bucket: bucket,
-      Key: relative.split(path.sep).join('/'),
-      Body: readFileSync(file),
+      Key: key,
+      Body: body,
       ContentType: TYPES[path.extname(file).toLowerCase()] ?? 'application/octet-stream',
       CacheControl: 'no-store, max-age=0',
     }));
   }
+  await deleteKeys(client, bucket, [...remote.keys()].filter((key) => !kept.has(key)));
 }
 
 function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: HtmlShareConfig): object {
@@ -114,8 +140,8 @@ export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: st
   const { buildRoot, manifest } = buildOnly(config);
   copyConsole(buildRoot, ownerManifest(manifest, outputs, config));
   const client = new S3Client({ region: config.aws.region });
-  await uploadTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'));
-  await uploadTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
+  await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'));
+  await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
   return { consoleUrl: `${outputs.ConsoleUrl}/app/index.html`, pages: manifest.pages.length };
 }
 

@@ -15,6 +15,7 @@ test('bundles local assets and adds privacy metadata', () => {
   assert.match(bundled, /name="referrer" content="no-referrer"/);
   assert.match(bundled, /table\[data-mb-view="card"\]/);
   assert.match(bundled, /data-mb-tables/);
+  assert.match(bundled, /\.cal-grid\[data-mb-cal="list"\]/);
 });
 
 test('rejects pages outside approved roots, including symlinks', () => {

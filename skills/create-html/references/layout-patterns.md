@@ -15,7 +15,7 @@ Use for reports, recommendations, and meeting summaries.
 
 Use a table when the same fields repeat across three or more options. Put evaluation criteria in the first column and options across the remaining columns. Highlight one recommendation only when the source supports it.
 
-On narrow screens, keep the table intact inside `.table-wrap`; do not transform cells into a long stack that hides field-to-field comparison.
+Wrap every table in `.table-wrap` so it scrolls inside its own container. On phones the delivered page folds a table with few columns into stacked cards automatically, so do not hand-write a second mobile-only markup for the same data.
 
 ## Timeline or workflow
 
@@ -24,6 +24,22 @@ Use an ordered vertical timeline for events, phases, or dependent steps. Each en
 ## Paired question and answer
 
 Use a two-column pair when the page distinguishes source material from commentary, a problem from a response, or a request from a decision. On mobile, stack each pair while preserving its left-to-right reading order.
+
+## Monthly calendar
+
+Render one month per full-width block and put each entry inside its own day cell. Use this class contract, because the delivered page folds the grid into a dated vertical list on phones and keys off these names:
+
+- `.cal-grid` on the seven-column grid, starting on Monday
+- `.dow` on the weekday header cells
+- `.day` on every date cell, plus `.pad` for leading and trailing blanks and `.has` for a day that holds an entry
+- `.dn` for the date number, with a nested `<i>` for the weekday letter
+- `.chip` for each entry inside a day
+
+Scope every calendar rule under `.cal-grid`; a bare `.day` or `.dn` selector collides with ordinary tables elsewhere on the page.
+
+## Before and after
+
+When the page shows a revision, place the previous version on the left and the new one on the right so the reader compares at the same eye level. Stack them only below roughly 46 rem, and highlight the changed passage rather than the whole block.
 
 ## Key figures
 
