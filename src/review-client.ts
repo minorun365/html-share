@@ -69,7 +69,7 @@ async function request(config: HtmlShareConfig, pathname: string, options: {
     headers: {
       ...(serialized ? {
         'content-type': 'application/json',
-        'x-content-sha256': createHash('sha256').update(serialized).digest('hex'),
+        'x-amz-content-sha256': createHash('sha256').update(serialized).digest('hex'),
       } : {}),
       ...(authenticated ? { 'x-review-device-token': saved!.deviceToken } : {}),
     },
