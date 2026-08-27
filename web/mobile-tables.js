@@ -4,16 +4,36 @@
 
   // 表を横スクロールさせても、スマホでは読めない。行の見出しを見失うし、
   // 左右に振りながら1行を追うのは実用にならない。
-  // 狭いのは列数ではなく、white-space:nowrap と長文セルが幅を押し広げているため。
-  // 列の少ない表は縦積みのカードへ畳み、本当に横長な表だけスクロールを残して1列目を固定する。
-  // 畳むかどうかを列数だけで決めない。5列でも中身が長文なら、横に並べたところで
-  // 3列目から先は画面の外にあって読めない。
-  // 逆に数値や短い語が並ぶマトリクスは、横に並んでいること自体が情報なので送れれば足りる。
-  const CARD_MAX_COLUMNS = 4;
-  const CARD_MAX_COLUMNS_WITH_PROSE = 6;
+  //
+  // 扱いは3段階。上から順に試して、通ったところで止める（2026-08-21 に再設計）。
+  //
+  //   ① そのまま収める … 幅を押し広げている指定（min-width・white-space:nowrap・
+  //      固定幅・広い余白）を打ち消して測り直す。収まれば表のまま置く。PCと同じ形で
+  //      読めるので、これがいちばん良い。
+  //   ② カードへ畳む   … ①で収まらない表と、長文セルを抱えた表。
+  //   ③ 横スクロール   … 本体に結合セルがあって畳めない表だけ。最後の手段。
+  //
+  // 以前は①が無く、②の可否を列数で決めていた（4列まで、長文があれば6列まで）。
+  // その結果、「5〜6列だが各セルは短い」表が②からも外れて③へ落ち、いちばん収まりやすい
+  // はずの表がいちばん読めない形で出ていた。全1035個のうち63個がこれに当たる
+  // （2026-08-21 実測）。
+  // 幅を押し広げているのは列数ではなく nowrap と min-width なので、そこを外す①を先に置く。
+  // ①が数値マトリクスを救うため、②の列数の上限は撤廃した。
   const LONG_CELL_CHARS = 40;
   // 端数の丸めでスクロールバー1px分がはみ出しに見えることがあるので、少し余裕を持たせる
   const OVERFLOW_TOLERANCE = 4;
+
+  /* JSの判定を待たずに効かせる土台。表の min-width は、375px の画面に対して
+     「必ずはみ出す」と宣言しているのと同じで、共有くんの表が読めない原因のほぼ全部が
+     これだった（2026-08-21 実測。既定スタイルシートの min-width:600px が全ページへ
+     コピーされていた）。ここで打ち消しておけば、下の判定が走る前から表は収まる。
+     スクリプトの起動は fonts.ready と rAF に乗るので、タブが背面にある間は進まない。
+     いちばん効く対処をそこへ乗せない */
+  const baseStyleText = `
+    @media (max-width: 46rem) {
+      table { min-width: 0 !important; }
+    }
+  `;
 
   const styleText = `
     /* ── 共通 ───────────────────────────────────────────── */
@@ -48,6 +68,36 @@
       stroke-linecap: round;
       stroke-linejoin: round;
     }
+
+    /* ── そのまま収める表示 ─────────────────────────────── */
+    /* 幅を押し広げている指定だけを打ち消す。列の並びも配色も元のまま残るので、
+       読み手にとってはPCと同じ表に見える */
+    table[data-mb-view="fit"] {
+      min-width: 0 !important;
+      width: 100% !important;
+      max-width: 100% !important;
+      table-layout: auto !important;
+    }
+    table[data-mb-view="fit"] > * > tr > th,
+    table[data-mb-view="fit"] > * > tr > td {
+      min-width: 0 !important;
+      width: auto !important;
+      max-width: none !important;
+      padding-left: .4375rem !important;
+      padding-right: .4375rem !important;
+      font-size: .78125rem !important;
+      line-height: 1.6 !important;
+    }
+    /* 折り返しを許すのは長いセルだけ。日付・数値・短い語まで折り返せるようにすると、
+       ブラウザはその列を1文字幅まで詰めてよいと判断し、「8/14」が3行に割れる
+       （2026-08-21、Simulatorで実際にそうなった）。overflow-wrap:anywhere は
+       最小幅の計算まで変えてしまうので使わない */
+    table[data-mb-view="fit"] > * > tr > [data-mb-wrap] {
+      white-space: normal !important;
+      overflow-wrap: break-word;
+    }
+    /* セル内の要素が固有幅を持っていても、表の外へはみ出させない */
+    table[data-mb-view="fit"] > * > tr > * > * { max-width: 100% !important; }
 
     /* ── カード表示 ─────────────────────────────────────── */
     /* 元ページのCSSは表として書かれているので、display から色まで上書きが要る。
@@ -171,6 +221,14 @@
     '--mb-mut': '#6b6b73',
   };
 
+  let baseStyleEl = null;
+  function ensureBaseStyle() {
+    if (baseStyleEl) return;
+    baseStyleEl = document.createElement('style');
+    baseStyleEl.textContent = baseStyleText;
+    (document.head ?? document.documentElement).append(baseStyleEl);
+  }
+
   let styleEl = null;
   function ensureStyle() {
     if (styleEl) return;
@@ -222,12 +280,29 @@
       [...row.cells].some((cell) => cell.textContent.trim().length >= LONG_CELL_CHARS));
   }
 
-  /** 縦積みのカードへ畳んでよい表か */
+  /** 縦積みのカードへ畳んでよい表か。
+   *  畳めないのは本体に結合セルがある表だけ。列数では切らない——列が多い表ほど
+   *  横スクロールでは読めないので、縦に長くなってでもカードのほうが実用になる。
+   *  短い語が並ぶマトリクスは①で収まるので、そもそもここへ来ない */
   function canFold(table) {
-    const columns = columnCount(table);
-    if (columns === 0 || hasMergedCells(table)) return false;
-    if (columns <= CARD_MAX_COLUMNS) return true;
-    return columns <= CARD_MAX_COLUMNS_WITH_PROSE && hasProse(table);
+    return columnCount(table) > 0 && !hasMergedCells(table);
+  }
+
+  /** 折り返してよいセルへ印を付ける。短いセルは元の nowrap のまま残す。
+   *  ここを一律に折り返し可にすると、表の列が1文字幅まで詰められる */
+  const WRAPPABLE_CHARS = 8;
+  function markWrappable(table) {
+    for (const row of table.rows) {
+      for (const cell of row.cells) {
+        if (cell.textContent.trim().length >= WRAPPABLE_CHARS) cell.dataset.mbWrap = '1';
+      }
+    }
+  }
+
+  function clearWrappable(table) {
+    for (const row of table.rows) {
+      for (const cell of row.cells) delete cell.dataset.mbWrap;
+    }
   }
 
   /** 素の状態で右へどれだけはみ出しているか。ラッパーの有無に関わらず測れる形にする */
@@ -239,6 +314,8 @@
   }
 
   const entries = [];
+  /** ①で収めた表。teardown で戻せるよう控える */
+  const fitted = [];
 
   function applyCard(entry) {
     const { table } = entry;
@@ -337,9 +414,20 @@
       && !table.closest('[data-mb-tables="off"]'));
 
     for (const table of tables) {
-      const overflow = overflowAmount(table);
       // 収まっている表はPCと同じ見た目のまま残す。触る理由がない
-      if (overflow <= OVERFLOW_TOLERANCE) continue;
+      if (overflowAmount(table) <= OVERFLOW_TOLERANCE) continue;
+
+      // ① 幅を押し広げている指定を外して測り直す。これで収まるなら表のまま置く。
+      //    長文セルを抱えた表だけは、収まってもカードへ回す——列が細って
+      //    1列だけ何行にも伸びた表は、収まってはいても読めた形にならない
+      markWrappable(table);
+      table.dataset.mbView = 'fit';
+      if (overflowAmount(table) <= OVERFLOW_TOLERANCE && !hasProse(table)) {
+        fitted.push(table);
+        continue;
+      }
+      delete table.dataset.mbView;
+      clearWrappable(table);
 
       const canCard = canFold(table);
       const { outer, scroller } = wrap(table);
@@ -369,16 +457,25 @@
       entry.outer.remove();
     }
     entries.length = 0;
+    for (const table of fitted) {
+      delete table.dataset.mbView;
+      clearWrappable(table);
+    }
+    fitted.length = 0;
   }
 
   // 横向きにすると 844px になり、狭幅の前提が外れる。素のページへ戻す
   narrow.addEventListener('change', () => {
     if (narrow.matches) {
-      if (entries.length === 0) setup();
+      if (entries.length === 0 && fitted.length === 0) setup();
     } else {
       teardown();
     }
   });
+
+  // 土台のCSSは幅に関係なく先に入れておく。中身がメディアクエリなので、
+  // PC幅では何も起きない。画面を回して狭くなった直後にも取りこぼさない
+  ensureBaseStyle();
 
   if (!narrow.matches) return;
 

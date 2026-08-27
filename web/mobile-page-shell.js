@@ -1,7 +1,11 @@
 (() => {
   const script = document.currentScript;
   const currentSlug = script?.dataset.slug ?? '';
-  if (!currentSlug || !matchMedia('(max-width: 46rem)').matches) return;
+  // 画面幅では絞らない。本体URL（/pages/<slug>/index.html）を直に開いたときは、
+  // PCでもホームと「…」が無いとトップへ戻る手段が消え、共有URLも発行できない。
+  // 絞るのは iframe の中だけ。PCでトップから開いた場合は app/index.html が同じ操作を
+  // 自前で重ねるので、ここでも出すと操作が2組ぶら下がる。
+  if (!currentSlug || window.self !== window.top) return;
 
   // 一覧の見た目と描画は page-list.js が唯一の実装。ここへ写しを作らないこと
   const L = window.MyBriefsList;
@@ -54,8 +58,15 @@
         pointer-events: none;
         transition: transform .24s ease, opacity .18s ease;
       }
+      /* PCはホイールを少し戻せば出したいので、消さずに上へ逃がして滑らかに戻す */
       .toolbar.reading {
-        display: none;
+        transform: translateY(-5rem);
+        opacity: 0;
+      }
+      .toolbar.reading .tool { pointer-events: none; }
+      @media (max-width: 46rem) {
+        /* スマホは backdrop-filter を載せたまま流すとスクロールが重くなる。描画から外す */
+        .toolbar.reading { display: none; }
       }
       .tool {
         width: 2.75rem;
@@ -76,6 +87,19 @@
       .tool svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
       .tool.more svg { fill: currentColor; stroke: none; }
       .tool:active { transform: scale(.94); }
+      /* iframe 越しのトップ（app/index.html の #home-btn / #page-more）と同じ角丸にする。
+         同じPCで入口によって丸と角丸が入れ替わると継ぎはぎに見える */
+      @media (min-width: 46.0625rem) {
+        .tool { border-radius: 1rem; }
+      }
+      @media (hover: hover) {
+        .tool, .action, .issue, .share-panel select { cursor: pointer; }
+        .tool:hover { background: var(--panel); color: var(--ink); }
+        .action:hover { background: rgba(10, 70, 149, .08); }
+        .action.delete:hover { background: rgba(217, 45, 32, .08); }
+        .action:disabled { cursor: default; }
+        .action:disabled:hover { background: transparent; }
+      }
       /* display を持つ要素は hidden 属性だけでは隠れないので、明示的に落とす */
       .action-menu[hidden], .share-panel[hidden], .share-toast[hidden], .popover-dismiss[hidden] { display: none; }
       .popover-dismiss {
@@ -256,6 +280,8 @@
     return payload;
   }
 
+  // 読み込み直後の書き戻しと、メニュー操作の保存がぶつかると、
+  // どちらが後に届くか分からず古い状態で上書きされる。直列に流して順序を保つ
   let pendingSync = Promise.resolve();
 
   function persistPreferences() {
@@ -333,6 +359,8 @@
     if (!L.markUnread(currentPage, readMarks)) return;
     try {
       await persistPreferences();
+      // ここに留まると、読み込み直した拍子にまた既読へ倒れる。
+      // 一覧へ戻して、黄色い「新着」に戻ったことをその場で見せる
       location.href = '/app/index.html';
     } catch (error) {
       if (previousMark === undefined) delete readMarks[currentPage.source];
@@ -424,9 +452,17 @@
     event.preventDefault();
     closePopovers();
   });
+  // スマホは画面が短く、指1本で上端まで戻せるので、下へ読む間は隠したままでよい。
+  // PCはページが長いので、上へ少し戻した時点で出す。判定の向きと閾値は
+  // app/index.html の watchFrameScroll と同じにしてある（入口で挙動を変えない）。
+  const narrow = matchMedia('(max-width: 46rem)');
+  let lastScrollY = scrollY;
   addEventListener('scroll', () => {
     const nextY = scrollY;
-    setToolbarHidden(nextY > 24);
+    if (narrow.matches) setToolbarHidden(nextY > 24);
+    else if (nextY <= 24 || nextY < lastScrollY - 6) setToolbarHidden(false);
+    else if (nextY > lastScrollY + 6) setToolbarHidden(true);
+    lastScrollY = nextY;
   }, { passive: true });
 
   starredSources = readList(STAR_KEY, 200);
@@ -472,11 +508,13 @@
       seedReadMarks();
     }
 
+    preferencesReady = true;
+    syncMenu();
+    // いま開いている当のページは読んだ状態にする。トップを経由せず
+    // 共有URLやホーム画面から直接来たときも、これで新着が外れる
     if (L.markRead(currentPage, readMarks)) needsPush = true;
     saveLocalPreferences();
     if (needsPush) persistPreferences().catch((error) => console.warn(error));
-    preferencesReady = true;
-    syncMenu();
   }).catch((error) => {
     console.error(error);
   });

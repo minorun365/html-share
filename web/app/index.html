@@ -737,6 +737,7 @@ body.page-controls-hidden #page-actions {
     );
   }
 
+  // 既読の記録・マージ・書き戻し判定はすべて page-list.js が正本。ここは呼ぶだけにする
   const seedReadMarks = () => L.seedReadMarks(allPages, readMarks);
   const hasUnsyncedReadMarks = (remoteMarks) => L.hasUnsyncedReadMarks(readMarks, remoteMarks);
 
@@ -838,8 +839,8 @@ body.page-controls-hidden #page-actions {
     if (isStarred(page)) starred.delete(page.source);
     else starred.add(page.source);
     queuePreferenceSave();
+    if (current?.source === page.source) syncPageMenu();
     renderHome();
-    syncPageMenu();
   }
 
   // ☆ボタンは page-list.js が正本。トップの行もスマホのドロワーも同じものを使う
@@ -1084,6 +1085,7 @@ body.page-controls-hidden #page-actions {
     document.body.classList.toggle('page-open', Boolean(current));
     document.body.classList.remove('page-controls-hidden');
     closePagePopovers();
+    syncPageMenu();
 
     if (!current) {
       frame.hidden = true;
@@ -1134,6 +1136,7 @@ body.page-controls-hidden #page-actions {
     pageStar.disabled = !current;
     pageStar.classList.toggle('starred', on);
     pageStar.querySelector('span').textContent = on ? 'スターを外す' : 'スターを付ける';
+    // 開いた時点で既読になるので、押せるのは「いま開いているページがある」ときだけ
     pageUnread.disabled = !current;
   }
 
@@ -1232,6 +1235,8 @@ body.page-controls-hidden #page-actions {
     const page = current;
     closePagePopovers();
     if (!markUnread(page)) return;
+    // ここに留まると、再読み込みやページを開き直した拍子にまた既読へ倒れる。
+    // 一覧へ戻して、黄色い「新着」に戻ったことをその場で見せる
     location.hash = '#/';
   });
   pageShare.addEventListener('click', () => {
