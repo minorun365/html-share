@@ -169,6 +169,11 @@ export class HtmlShareStack extends Stack {
       idTokenValidity: Duration.minutes(10),
       refreshTokenValidity: Duration.days(1),
     });
+    new cognito.CfnManagedLoginBranding(this, 'OwnerBranding', {
+      userPoolId: userPool.userPoolId,
+      clientId: userPoolClient.userPoolClientId,
+      useCognitoProvidedValues: true,
+    });
     userPool.addDomain('OwnerDomain', {
       cognitoDomain: { domainPrefix: props.cognitoDomainPrefix },
       managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,

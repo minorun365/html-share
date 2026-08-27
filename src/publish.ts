@@ -115,6 +115,8 @@ function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: H
   const privateKeyPath = resolveFromConfig(config, config.aws.privateKeyPath);
   return {
     generatedAt: manifest.generatedAt,
+    internalSharing: manifest.internalSharing,
+    maximumShareDays: manifest.maximumShareDays,
     pages: manifest.pages.map((page: BuiltPage) => ({
       ...page,
       href: signUrl({
@@ -130,7 +132,7 @@ function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: H
 export function buildOnly(config: HtmlShareConfig): { buildRoot: string; manifest: BuildManifest } {
   const buildRoot = path.resolve(config.baseDir, '.html-share', 'build');
   const manifest = buildSite(config, buildRoot);
-  copyConsole(buildRoot, { generatedAt: manifest.generatedAt, pages: manifest.pages.map((page) => ({ ...page, href: null })) });
+  copyConsole(buildRoot, { ...manifest, pages: manifest.pages.map((page) => ({ ...page, href: null })) });
   return { buildRoot, manifest };
 }
 
@@ -152,7 +154,7 @@ export function share(config: HtmlShareConfig, query: string, days: number): str
   const buildRoot = path.resolve(config.baseDir, '.html-share', 'build');
   const manifest = JSON.parse(readFileSync(path.join(buildRoot, 'manifest.json'), 'utf8')) as BuildManifest;
   const outputs = loadOutputs(path.resolve(config.baseDir, '.html-share', 'outputs.json'));
-  const matches = manifest.pages.filter((page) => page.slug === query || page.slug.includes(query) || page.title.includes(query));
+  const matches = matchingPages(manifest.pages, query);
   if (matches.length !== 1) throw new Error(matches.length ? `Multiple pages match ${query}: ${matches.map((p) => p.slug).join(', ')}` : `Page not found: ${query}`);
   return signUrl({
     url: `${outputs.ContentUrl}/${matches[0].objectKey}`,
@@ -160,4 +162,10 @@ export function share(config: HtmlShareConfig, query: string, days: number): str
     privateKeyPath: resolveFromConfig(config, config.aws.privateKeyPath),
     days,
   });
+}
+
+export function matchingPages(pages: BuiltPage[], query: string): BuiltPage[] {
+  const exact = pages.filter((page) => page.slug === query);
+  if (exact.length > 0) return exact;
+  return pages.filter((page) => page.slug.includes(query) || page.title.includes(query));
 }

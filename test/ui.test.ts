@@ -33,6 +33,34 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /id="review-dot"/);
   assert.match(dashboard, /function refreshInboxDot/);
   assert.match(dashboard, /\/api\/owner\/reviews/);
+  assert.match(dashboard, /function configureShareOptions/);
+  assert.match(dashboard, /manifest\.internalSharing/);
+  assert.match(dashboard, /manifest\.maximumShareDays/);
+  assert.match(shell, /function configureShareOptions/);
+  assert.match(shell, /manifest\.internalSharing/);
+  assert.match(shell, /manifest\.maximumShareDays/);
+});
+
+test('loads iframe pages without adding child-frame history entries', () => {
+  const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
+  assert.match(dashboard, /function loadFrame/);
+  assert.match(dashboard, /view\.location\.replace\(url\)/);
+  assert.doesNotMatch(dashboard, /frame\.src = current\.href/);
+  assert.doesNotMatch(dashboard, /frame\.removeAttribute\('src'\)/);
+});
+
+test('keeps generated report sections within the mobile viewport', () => {
+  const template = readFileSync(path.join(root, 'skills', 'create-html', 'assets', 'brief-template.html'), 'utf8');
+  assert.match(template, /main > \* \{ min-width: 0; \}/);
+});
+
+test('provisions managed login branding and the CloudFront payload hash header', () => {
+  const stack = readFileSync(path.join(root, 'infra', 'lib', 'html-share-stack.ts'), 'utf8');
+  const client = readFileSync(path.join(root, 'src', 'review-client.ts'), 'utf8');
+  assert.match(stack, /new cognito\.CfnManagedLoginBranding/);
+  assert.match(stack, /useCognitoProvidedValues: true/);
+  assert.match(client, /'x-amz-content-sha256'/);
+  assert.doesNotMatch(client, /'x-content-sha256'/);
 });
 
 test('folds overflowing tables on the viewing origin without network access', () => {

@@ -3,7 +3,8 @@ import { mkdtempSync, realpathSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { bundleHtml, slugify } from '../src/bundle.js';
+import { buildSite, bundleHtml, slugify } from '../src/bundle.js';
+import type { HtmlShareConfig } from '../src/config.js';
 
 test('bundles local assets and adds privacy metadata', () => {
   const root = mkdtempSync(path.join(tmpdir(), 'html-share-bundle-'));
@@ -31,4 +32,38 @@ test('rejects pages outside approved roots, including symlinks', () => {
 test('creates stable ASCII slugs', () => {
   assert.equal(slugify('Release Notes 2026'), 'release-notes-2026');
   assert.match(slugify('共有結果'), /^page-[a-f0-9]{8}$/);
+});
+
+test('includes share capabilities in the generated manifest without exposing CIDRs', () => {
+  const root = mkdtempSync(path.join(tmpdir(), 'html-share-manifest-'));
+  const page = path.join(root, 'page.html');
+  writeFileSync(page, '<h1>Demo</h1>');
+  const config = {
+    ownerEmail: 'owner@example.com',
+    aws: {
+      region: 'ap-northeast-1',
+      consoleDomain: 'console.example.com',
+      contentDomain: 'content.example.com',
+      certificateArn: 'arn:aws:acm:us-east-1:111122223333:certificate/00000000-0000-4000-8000-000000000000',
+      cognitoDomainPrefix: 'html-share-test',
+      publicKeyPath: '.html-share/keys/public.pem',
+      privateKeyPath: '.html-share/keys/private.pem',
+      privateKeyParameterName: '/html-share/test/private-key',
+    },
+    content: {
+      roots: ['.'],
+      pages: [{ path: 'page.html' }],
+      ownerLinkDays: 7,
+      maximumShareDays: 30,
+      maximumAssetBytes: 1024,
+      allowedInternalCidrs: ['203.0.113.0/24'],
+    },
+    configFile: path.join(root, 'html-share.config.yaml'),
+    baseDir: root,
+  } satisfies HtmlShareConfig;
+
+  const manifest = buildSite(config, path.join(root, 'build'));
+  assert.equal(manifest.internalSharing, true);
+  assert.equal(manifest.maximumShareDays, 30);
+  assert.doesNotMatch(JSON.stringify(manifest), /203\.0\.113/);
 });

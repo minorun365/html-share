@@ -229,6 +229,24 @@
   // { ページの source: 開いたときの更新日時 }。更新日時ごと持つので、再更新で自動的に未読へ戻る
   let readMarks = {};
   let knowsReadMarks = false;
+
+  function configureShareOptions(manifest) {
+    const scope = $('.scope');
+    if (!manifest.internalSharing) {
+      scope.querySelector('option[value="i"]')?.remove();
+      scope.value = 'p';
+    }
+
+    const maximumDays = Number(manifest.maximumShareDays);
+    const days = $('.days');
+    if (Number.isInteger(maximumDays) && maximumDays > 0) {
+      for (const option of [...days.options]) {
+        if (Number(option.value) > maximumDays) option.remove();
+      }
+      const available = [...days.options].map((option) => Number(option.value));
+      days.value = String(available.includes(7) ? 7 : available.at(-1));
+    }
+  }
   function readList(key, max) {
     try {
       const value = JSON.parse(localStorage.getItem(key) ?? '[]');
@@ -426,6 +444,7 @@
       });
       sharePanel.hidden = true;
       more.setAttribute('aria-expanded', 'false');
+      shareToast.querySelector('strong').textContent = 'コピーしました';
       shareToast.querySelector('.toast-meta').textContent = `${expires}まで有効`;
       shareToast.hidden = false;
       popoverDismiss.hidden = false;
@@ -433,8 +452,18 @@
       shareToastTimer = setTimeout(closePopovers, 2500);
     } catch (error) {
       console.error(error);
-      issue.textContent = generatedUrl ? 'URLを表示しました' : '発行できませんでした';
-      if (generatedUrl) prompt('このURLをコピーしてください', generatedUrl);
+      if (generatedUrl) {
+        prompt('このURLをコピーしてください', generatedUrl);
+      } else {
+        sharePanel.hidden = true;
+        more.setAttribute('aria-expanded', 'false');
+        shareToast.querySelector('strong').textContent = '発行できませんでした';
+        shareToast.querySelector('.toast-meta').textContent = error instanceof Error ? error.message : String(error);
+        shareToast.hidden = false;
+        popoverDismiss.hidden = false;
+        clearTimeout(shareToastTimer);
+        shareToastTimer = setTimeout(closePopovers, 5000);
+      }
     } finally {
       issue.disabled = false;
       issue.textContent = '発行してコピー';
@@ -471,6 +500,7 @@
   const hadLocalReadMarks = knowsReadMarks;
 
   fetch('/app/manifest.json', { cache: 'no-store' }).then((response) => response.json()).then(async (manifest) => {
+    configureShareOptions(manifest);
     allPages = manifest.pages ?? [];
     const validSources = new Set(allPages.map((page) => page.source));
     hiddenSources = new Set([...hiddenSources].filter((sourceValue) => validSources.has(sourceValue)));

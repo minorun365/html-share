@@ -52,6 +52,18 @@ Usage:
 async function main(): Promise<void> {
   const command = process.argv[2];
   if (!command || flag('--help') || flag('-h')) usage();
+
+  // page add is the command that creates the first content.pages entry, so it must
+  // be able to run before the complete config passes normal publish validation.
+  if (command === 'page') {
+    const action = process.argv[3];
+    const pagePath = process.argv[4];
+    if (action !== 'add' || !pagePath) usage();
+    const added = addPageToConfig(option('--config'), pagePath, option('--title'));
+    console.log(JSON.stringify({ ok: true, added, path: pagePath }));
+    return;
+  }
+
   const config = loadConfig(option('--config'));
 
   if (command === 'build') {
@@ -68,14 +80,6 @@ async function main(): Promise<void> {
     if (!query) usage();
     const days = Number(option('--days') ?? 7);
     console.log(share(config, query, days));
-    return;
-  }
-  if (command === 'page') {
-    const action = process.argv[3];
-    const pagePath = process.argv[4];
-    if (action !== 'add' || !pagePath) usage();
-    const added = addPageToConfig(option('--config'), pagePath, option('--title'));
-    console.log(JSON.stringify({ ok: true, added, path: pagePath }));
     return;
   }
   if (command === 'keys') {

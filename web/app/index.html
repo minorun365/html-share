@@ -1080,6 +1080,37 @@ body.page-controls-hidden #page-actions {
     if (meta) brandMeta.textContent = `${pages.length}ページ ／ ${fmtDateTime(meta.generatedAt)} 更新`;
   }
 
+  function loadFrame(url) {
+    const view = frame.contentWindow;
+    if (!view) {
+      frame.src = url;
+      return;
+    }
+    try {
+      view.location.replace(url);
+    } catch {
+      frame.src = url;
+    }
+  }
+
+  function configureShareOptions(manifest) {
+    const scope = $('page-share-scope');
+    if (!manifest.internalSharing) {
+      scope.querySelector('option[value="i"]')?.remove();
+      scope.value = 'p';
+    }
+
+    const maximumDays = Number(manifest.maximumShareDays);
+    const days = $('page-share-days');
+    if (Number.isInteger(maximumDays) && maximumDays > 0) {
+      for (const option of [...days.options]) {
+        if (Number(option.value) > maximumDays) option.remove();
+      }
+      const available = [...days.options].map((option) => Number(option.value));
+      days.value = String(available.includes(7) ? 7 : available.at(-1));
+    }
+  }
+
   function select(slug) {
     current = pages.find((p) => p.slug === slug) ?? null;
     document.body.classList.toggle('page-open', Boolean(current));
@@ -1089,14 +1120,14 @@ body.page-controls-hidden #page-actions {
 
     if (!current) {
       frame.hidden = true;
-      frame.removeAttribute('src');
+      loadFrame('about:blank');
       renderHome();
       home.classList.add('on');
       document.title = 'HTML共有くん';
     } else {
       home.classList.remove('on');
       frame.hidden = false;
-      frame.src = current.href;
+      loadFrame(current.href);
       document.title = `${current.title}｜HTML共有くん`;
       // ブックマークやURL直打ちで開いた場合もここを通るので、未読解除はまとめてここで行う
       markRead(current);
@@ -1273,6 +1304,7 @@ body.page-controls-hidden #page-actions {
       });
       pageSharePanel.hidden = true;
       pageMore.setAttribute('aria-expanded', 'false');
+      pageShareToast.querySelector('strong').textContent = 'コピーしました';
       pageShareToast.querySelector('.toast-meta').textContent = `${expires}まで有効`;
       pageShareToast.hidden = false;
       pagePopoverDismiss.hidden = false;
@@ -1280,8 +1312,18 @@ body.page-controls-hidden #page-actions {
       shareToastTimer = setTimeout(closePagePopovers, 2500);
     } catch (error) {
       console.error(error);
-      pageShareIssue.textContent = generatedUrl ? 'URLを表示しました' : '発行できませんでした';
-      if (generatedUrl) prompt('このURLをコピーしてください', generatedUrl);
+      if (generatedUrl) {
+        prompt('このURLをコピーしてください', generatedUrl);
+      } else {
+        pageSharePanel.hidden = true;
+        pageMore.setAttribute('aria-expanded', 'false');
+        pageShareToast.querySelector('strong').textContent = '発行できませんでした';
+        pageShareToast.querySelector('.toast-meta').textContent = error instanceof Error ? error.message : String(error);
+        pageShareToast.hidden = false;
+        pagePopoverDismiss.hidden = false;
+        clearTimeout(shareToastTimer);
+        shareToastTimer = setTimeout(closePagePopovers, 5000);
+      }
     } finally {
       pageShareIssue.disabled = false;
       pageShareIssue.textContent = '発行してコピー';
@@ -1317,6 +1359,7 @@ body.page-controls-hidden #page-actions {
     .then((r) => r.json())
     .then(async (data) => {
       meta = data;
+      configureShareOptions(data);
       allPages = data.pages ?? [];
       await loadPreferences();
       select(location.hash.replace(/^#\//, ''));

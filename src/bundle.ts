@@ -60,6 +60,8 @@ export interface BuiltPage {
 
 export interface BuildManifest {
   generatedAt: string;
+  internalSharing: boolean;
+  maximumShareDays: number;
   pages: BuiltPage[];
 }
 
@@ -172,7 +174,12 @@ export function buildSite(config: HtmlShareConfig, buildRoot: string): BuildMani
       objectKey: `pages/${slug}/index.html`,
     };
   });
-  const manifest = { generatedAt: new Date().toISOString(), pages };
+  const manifest = {
+    generatedAt: new Date().toISOString(),
+    internalSharing: config.content.allowedInternalCidrs.length > 0,
+    maximumShareDays: config.content.maximumShareDays,
+    pages,
+  };
   writeFileSync(path.join(buildRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
 }
