@@ -5,7 +5,7 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { BuildManifest, BuiltPage } from './bundle.js';
@@ -111,6 +111,72 @@ async function syncTree(client: S3Client, bucket: string, root: string): Promise
   await deleteKeys(client, bucket, [...remote.keys()].filter((key) => !kept.has(key)));
 }
 
+/**
+ * publish 全体を1プロセスだけに絞る。
+ *
+ *   build は .html-share/build をまるごと作り直すので、生成の途中はページが欠けた
+ *   状態になる。syncTree は「ローカルに無いキーは消す」ので、その欠けた状態を正として
+ *   バケット側のページを消してしまう。publish が2つ重なるだけで起きるうえ、
+ *   どちらのコマンドも成功して終わるため、消えたことに気づく手がかりが残らない。
+ *
+ *   「開始時に他の publish が無いこと」を確認するだけでは足りない。確認から送信完了までの
+ *   あいだに始まった build を止められないので、送り終えるまでロックを持ち続ける。
+ */
+export function acquirePublishLock(config: HtmlShareConfig): () => void {
+  const lock = path.resolve(config.baseDir, '.html-share', 'publish.lock');
+  mkdirSync(path.dirname(lock), { recursive: true });
+  if (!takeLock(lock)) {
+    throw new Error(`Another publish is in progress. Wait for it to finish, or remove ${lock} if no process owns it.`);
+  }
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    rmSync(lock, { recursive: true, force: true });
+  };
+}
+
+/**
+ * ロックの取得は mkdir のアトミック性だけで判定する（既存なら EEXIST で失敗する）。
+ * 既にあるディレクトリへ自分の pid を書いて所有を主張してはいけない。他のプロセスが
+ * 持っているロックを黙って奪うことになる。
+ */
+function takeLock(lock: string): boolean {
+  const pidFile = path.join(lock, 'pid');
+  try {
+    mkdirSync(lock);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    // 落ちたプロセスが残したロックは引き取る。放置すると publish が二度と通らない。
+    // pid が読めないロックは「作られた直後」の可能性があるので、奪わず持ち主として扱う。
+    let owner = 0;
+    try {
+      owner = Number.parseInt(readFileSync(pidFile, 'utf8').trim(), 10);
+    } catch {
+      return false;
+    }
+    if (!Number.isInteger(owner) || owner <= 0 || isAlive(owner)) return false;
+    rmSync(lock, { recursive: true, force: true });
+    try {
+      mkdirSync(lock);
+    } catch {
+      return false;
+    }
+  }
+  writeFileSync(pidFile, `${process.pid}\n`);
+  return true;
+}
+
+function isAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    // EPERM は「他ユーザーのプロセスだが存在する」。生きている扱いにする。
+    return (error as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
 function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: HtmlShareConfig): object {
   const privateKeyPath = resolveFromConfig(config, config.aws.privateKeyPath);
   return {
@@ -129,22 +195,39 @@ function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: H
   };
 }
 
-export function buildOnly(config: HtmlShareConfig): { buildRoot: string; manifest: BuildManifest } {
+/** publish から呼ぶ用。ロックは呼び出し側が持っている（二重取得するとその場で失敗する）。 */
+function buildUnlocked(config: HtmlShareConfig): { buildRoot: string; manifest: BuildManifest } {
   const buildRoot = path.resolve(config.baseDir, '.html-share', 'build');
   const manifest = buildSite(config, buildRoot);
   copyConsole(buildRoot, { ...manifest, pages: manifest.pages.map((page) => ({ ...page, href: null })) });
   return { buildRoot, manifest };
 }
 
+export function buildOnly(config: HtmlShareConfig): { buildRoot: string; manifest: BuildManifest } {
+  const release = acquirePublishLock(config);
+  try {
+    return buildUnlocked(config);
+  } finally {
+    release();
+  }
+}
+
 export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: string; pages: number }> {
   const outputsFile = path.resolve(config.baseDir, '.html-share', 'outputs.json');
   const outputs = loadOutputs(outputsFile);
-  const { buildRoot, manifest } = buildOnly(config);
-  copyConsole(buildRoot, ownerManifest(manifest, outputs, config));
-  const client = new S3Client({ region: config.aws.region });
-  await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'));
-  await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
-  return { consoleUrl: `${outputs.ConsoleUrl}/app/index.html`, pages: manifest.pages.length };
+  // build と送信の両方を1つのロックで囲む。送信も .html-share/build を読む区間なので、
+  // ここを外すと「送信中に別の build が生成物を作り直す」状態が起きる。
+  const release = acquirePublishLock(config);
+  try {
+    const { buildRoot, manifest } = buildUnlocked(config);
+    copyConsole(buildRoot, ownerManifest(manifest, outputs, config));
+    const client = new S3Client({ region: config.aws.region });
+    await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'));
+    await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
+    return { consoleUrl: `${outputs.ConsoleUrl}/app/index.html`, pages: manifest.pages.length };
+  } finally {
+    release();
+  }
 }
 
 export function share(config: HtmlShareConfig, query: string, days: number): string {
