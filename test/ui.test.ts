@@ -106,6 +106,22 @@ test('keeps mobile input fields at 16px so iOS Safari does not zoom in', () => {
   }
 });
 
+test('refreshes the dashboard, inbox, and every bundled page by pulling down at the top', () => {
+  const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
+  const review = readFileSync(path.join(root, 'web', 'review', 'index.html'), 'utf8');
+  const pull = readFileSync(path.join(root, 'web', 'pull-to-refresh.js'), 'utf8');
+  const bundle = readFileSync(path.join(root, 'src', 'bundle.ts'), 'utf8');
+
+  assert.match(dashboard, /pull-to-refresh\.js/);
+  assert.match(review, /pull-to-refresh\.js/);
+  assert.match(pull, /document\.scrollingElement\?\.scrollTop/);
+  assert.match(pull, /Math\.abs\(deltaX\) > Math\.abs\(deltaY\)/);
+  assert.match(pull, /touchmove[\s\S]{0,520}event\.preventDefault\(\)/);
+  assert.match(pull, /distance >= TRIGGER_DISTANCE/);
+  assert.match(pull, /location\.reload\(\)/);
+  assert.match(bundle, /\['mobile-tables\.js', 'mobile-calendar\.js', 'pull-to-refresh\.js'\]/);
+});
+
 test('folds monthly calendars into a single column on narrow screens', () => {
   const calendar = readFileSync(path.join(root, 'web', 'mobile-calendar.js'), 'utf8');
   assert.match(calendar, /max-width: 46rem/);
