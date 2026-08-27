@@ -48,16 +48,16 @@
     "deploy": "cdk deploy --require-approval broadening --outputs-file .html-share/outputs.json"
   },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "3.1109.0",
+    "@aws-sdk/client-dynamodb": "3.1112.0",
     "@aws-sdk/client-s3": "3.1112.0",
-    "@aws-sdk/client-ssm": "3.1109.0",
+    "@aws-sdk/client-ssm": "3.1112.0",
     "@aws-sdk/cloudfront-signer": "3.1108.0",
-    "@aws-sdk/lib-dynamodb": "3.1109.0",
+    "@aws-sdk/lib-dynamodb": "3.1112.0",
     "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "26.2.0",
-    "aws-cdk": "2.1136.0",
+    "aws-cdk": "2.1137.0",
     "aws-cdk-lib": "2.265.0",
     "constructs": "10.8.1",
     "esbuild": "0.28.2",
