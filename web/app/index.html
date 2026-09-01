@@ -194,7 +194,10 @@ body.searching .search {
 #q {
   flex: 1; min-width: 0; height: 100%; padding: 0;
   border: 0; background: transparent; color: #fff;
-  font: inherit; font-size: .82rem;
+  /* ⚠️ 16px を下回らせない。iOS Safari は 16px 未満の入力欄にフォーカスすると
+     ページごと拡大し、横幅が画面からはみ出したまま戻らない（ピンチ操作が要る）。
+     バーの中では大きく見えるが、小ささは幅と padding で作る */
+  font: inherit; font-size: 16px;
   opacity: 0; transition: opacity .16s ease;
 }
 body.searching #q { opacity: 1; }
@@ -394,7 +397,9 @@ body.page-open #page-actions { display: block; }
 #page-share-issue {
   min-width: 0; min-height: 2.4rem; padding: .4rem .55rem;
   border: 1px solid var(--line); border-radius: .6rem; background: #f6f7f9; color: var(--ink);
-  font: inherit;
+  /* ⚠️ font: inherit だけだと上の label の .68rem を継承して 10.9px になり、
+     iOS Safari が拡大する。ラベルは小さいまま、入力欄だけ 16px で止める */
+  font: inherit; font-size: 16px;
 }
 #page-share-issue {
   grid-column: 1 / -1; border-color: var(--blue); background: var(--blue); color: #fff;

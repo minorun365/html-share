@@ -143,9 +143,13 @@
         border-radius: 1rem;
       }
       .share-panel label { display: grid; gap: .25rem; color: var(--mut); font-size: .68rem; }
+      /* ⚠️ font-size 16px は必須。上の label の .68rem を継承すると 10.9px になり、
+         iOS Safari が入力欄フォーカス時にページごと拡大する（app/index.html の
+         #page-share-panel select と対で直すこと） */
       .share-panel select, .issue {
         min-width: 0; min-height: 2.4rem; padding: .4rem .55rem;
         border: 1px solid var(--line); border-radius: .6rem; background: #f6f7f9; color: var(--ink);
+        font-size: 16px;
       }
       .issue { grid-column: 1 / -1; border-color: var(--blue); background: var(--blue); color: #fff; font-weight: 600; }
       .issue:disabled { opacity: .72; }

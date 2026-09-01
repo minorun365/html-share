@@ -150,7 +150,9 @@ main {
 .compose textarea {
   display: block; width: 100%; min-height: 3.6rem; resize: vertical;
   border: 1px solid var(--line); border-radius: .65rem; padding: .6rem .7rem;
-  color: var(--ink); background: var(--white); font: inherit; line-height: 1.6;
+  /* font-size は継承任せにせず明示する。app/index.html は body が 15px なので、
+     同じ書き方をあちらへ移すと 15px になり iOS Safari が拡大する */
+  color: var(--ink); background: var(--white); font: inherit; font-size: 16px; line-height: 1.6;
 }
 .compose textarea:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
 /* プロジェクト名は任意。固定の選択肢を持たず、過去に打った値を候補に出すだけなので、
@@ -164,7 +166,7 @@ main {
   display: block; width: 100%;
   border: 1px solid var(--line); border-radius: .65rem;
   padding: .45rem 2.5rem .45rem .7rem;
-  color: var(--ink); background: var(--white); font: inherit; font-size: 1rem;
+  color: var(--ink); background: var(--white); font: inherit; font-size: 16px;
 }
 .compose-target:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
 /* ⚠️ .target-open / .target-option には必ず .compose を前に付ける。下の `.compose button`
@@ -193,7 +195,7 @@ main {
 .compose .target-option {
   display: block; width: 100%; min-height: 2.4rem; padding: .45rem .7rem;
   border: 0; border-radius: .5rem; background: transparent;
-  color: var(--ink); font: inherit; font-size: 1rem; font-weight: 400;
+  color: var(--ink); font: inherit; font-size: 16px; font-weight: 400;
   text-align: left; cursor: pointer;
 }
 .compose .target-option:hover { background: var(--soft); }
@@ -251,7 +253,7 @@ main {
 .actions input {
   min-width: 0; min-height: 2.8rem; width: 100%;
   border: 1px solid var(--line); border-radius: .65rem; padding: .65rem .75rem;
-  color: var(--ink); background: var(--white);
+  color: var(--ink); background: var(--white); font-size: 16px;
 }
 .actions input:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
 .actions button:disabled { opacity: .55; cursor: default; }
