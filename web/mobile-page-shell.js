@@ -219,6 +219,7 @@
   const issue = $('.issue');
   let shareToastTimer = 0;
   const STAR_KEY = 'mb_starred_pages';
+  const STREAM_STAR_PREFIX = '@stream:';
   const HIDDEN_KEY = 'mb_hidden_pages';
   const READ_KEY = 'mb_read_marks';
   // 開かないまま放置したページが延々と黄色く残らないよう、新着表示はこの日数までに限る
@@ -507,6 +508,12 @@
     configureShareOptions(manifest);
     allPages = manifest.pages ?? [];
     const validSources = new Set(allPages.map((page) => page.source));
+    const validStreams = new Set(allPages.map((page) => page.stream ?? L.pageRepository(page)));
+    const isValidStarValue = (value) => validSources.has(value) || (
+      value.startsWith(STREAM_STAR_PREFIX)
+      && validStreams.has(value.slice(STREAM_STAR_PREFIX.length))
+    );
+    starredSources = starredSources.filter(isValidStarValue);
     hiddenSources = new Set([...hiddenSources].filter((sourceValue) => validSources.has(sourceValue)));
     currentPage = allPages.find((page) => page.slug === currentSlug) ?? null;
 
@@ -522,7 +529,7 @@
       try {
         const saved = await preferencesApi();
         if (saved.exists) {
-          starredSources = (saved.starredSources ?? []).filter((value) => validSources.has(value));
+          starredSources = (saved.starredSources ?? []).filter(isValidStarValue);
           hiddenSources = new Set((saved.hiddenSources ?? []).filter((value) => validSources.has(value)));
           needsPush = L.hasUnsyncedReadMarks(readMarks, saved.readMarks);
           readMarks = L.mergeReadMarks(readMarks, saved.readMarks ?? {});

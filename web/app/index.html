@@ -247,6 +247,10 @@ body.searching.has-query #search-clear { display: flex; }
   margin-left: auto; font-size: .72rem; color: var(--mut);
   font-variant-numeric: tabular-nums;
 }
+.th > .star {
+  flex: none; width: 2rem; height: 2rem; margin: -.35rem -.45rem -.35rem -.1rem;
+  font-size: 1rem;
+}
 
 /* ── 1 行 1 ページ。タイトル・更新時刻・スターだけに絞る ── */
 .row-wrap { position: relative; }
@@ -601,6 +605,7 @@ body.page-controls-hidden #page-actions {
   let shareToastTimer = 0;
   const trashToggle = $('trash-toggle'), trashLabel = $('trash-label');
   const STAR_KEY = 'mb_starred_pages';
+  const STREAM_STAR_PREFIX = '@stream:';
   const HIDDEN_KEY = 'mb_hidden_pages';
   const READ_KEY = 'mb_read_marks';
   const CAN_SYNC = location.protocol === 'https:';
@@ -649,6 +654,14 @@ body.page-controls-hidden #page-actions {
   const pageRepository = L.pageRepository;
   const pageStream = (page) => page.stream ?? pageRepository(page);
   const pageStreamLabel = (page) => page.streamLabel ?? pageStream(page);
+  const streamStarId = (streamKey) => `${STREAM_STAR_PREFIX}${streamKey}`;
+  const isStreamStarValue = (value) => value.startsWith(STREAM_STAR_PREFIX);
+  const isStreamStarred = (stream) => starred.has(streamStarId(stream.key));
+
+  function isValidStarValue(value, validSources, validStreams) {
+    if (validSources.has(value)) return true;
+    return isStreamStarValue(value) && validStreams.has(value.slice(STREAM_STAR_PREFIX.length));
+  }
 
   function saveLocalPreferences() {
     try {
@@ -750,7 +763,8 @@ body.page-controls-hidden #page-actions {
   async function loadPreferences() {
     const hadLocalReadMarks = knowsReadMarks;
     const validSources = new Set(allPages.map((page) => page.source));
-    starred = new Set([...starred].filter((source) => validSources.has(source)));
+    const validStreams = new Set(allPages.map(pageStream));
+    starred = new Set([...starred].filter((value) => isValidStarValue(value, validSources, validStreams)));
     hiddenSources = new Set([...hiddenSources].filter((source) => validSources.has(source)));
     pruneReadMarks(validSources);
     pages = allPages.filter((page) => !hiddenSources.has(page.source));
@@ -765,7 +779,8 @@ body.page-controls-hidden #page-actions {
     try {
       const saved = await preferencesApi();
       if (saved.exists) {
-        starred = new Set((saved.starredSources ?? []).filter((source) => validSources.has(source)));
+        starred = new Set((saved.starredSources ?? [])
+          .filter((value) => isValidStarValue(value, validSources, validStreams)));
         hiddenSources = new Set((saved.hiddenSources ?? []).filter((source) => validSources.has(source)));
         const needsPush = hasUnsyncedReadMarks(saved.readMarks);
         readMarks = L.mergeReadMarks(readMarks, saved.readMarks ?? {});
@@ -851,6 +866,19 @@ body.page-controls-hidden #page-actions {
 
   // ☆ボタンは page-list.js が正本。トップの行もスマホのドロワーも同じものを使う
   const starButton = (page) => L.starButton(page, { starred, onToggle: toggleStar });
+
+  function toggleStreamStar(stream) {
+    const id = streamStarId(stream.key);
+    if (starred.has(id)) starred.delete(id);
+    else starred.add(id);
+    queuePreferenceSave();
+    renderHome();
+  }
+
+  const streamStarButton = (stream) => L.starButton(
+    { source: streamStarId(stream.key), title: `${stream.label}カード` },
+    { starred, onToggle: () => toggleStreamStar(stream) },
+  );
 
   /** ページを開く */
   function openPage(page) {
@@ -966,7 +994,7 @@ body.page-controls-hidden #page-actions {
     last.dateTime = stream.pages[0].date;
     last.textContent = shortTime(stream.pages[0].date);
     last.title = `更新 ${fmtDateTime(stream.pages[0].date)}`;
-    head.append(count, last);
+    head.append(count, last, streamStarButton(stream));
     section.append(head);
 
     // 絞り込み中は「他N件」で隠さない。探している1件が畳まれた中にいると見つけられない
@@ -1066,9 +1094,18 @@ body.page-controls-hidden #page-actions {
       return;
     }
 
-    const pinned = items.filter(isStarred);
-    const rest = items.filter((page) => !isStarred(page));
-    if (pinned.length > 0) appendDateGroup('スター', groupByStream(pinned));
+    const pinnedStreams = [];
+    const rest = [];
+    for (const stream of groupByStream(items)) {
+      if (isStreamStarred(stream)) {
+        pinnedStreams.push(stream);
+        continue;
+      }
+      const pinnedPages = stream.pages.filter(isStarred);
+      if (pinnedPages.length > 0) pinnedStreams.push({ ...stream, pages: pinnedPages });
+      rest.push(...stream.pages.filter((page) => !isStarred(page)));
+    }
+    if (pinnedStreams.length > 0) appendDateGroup('スター', pinnedStreams);
 
     // テーマは最終更新日で区切りが決まる。今日1件でも触ったテーマは、
     // 過去の版を引き連れて「今日」へ上がってくる

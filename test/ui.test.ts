@@ -15,11 +15,16 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /インボックス/);
   assert.match(dashboard, /未読に戻す/);
   assert.match(dashboard, /groupByStream/);
+  assert.match(dashboard, /const STREAM_STAR_PREFIX = '@stream:'/, 'カードスターを個別ページと区別する');
+  assert.match(dashboard, /head\.append\(count, last, streamStarButton\(stream\)\)/, 'カード見出しにスターを置く');
+  assert.match(dashboard, /if \(isStreamStarred\(stream\)\)[\s\S]{0,160}pinnedStreams\.push\(stream\)/, 'カード全体をスター領域へ移す');
   assert.match(dashboard, /削除済み/);
   assert.match(dashboard, /api\/owner\/shares/);
   assert.match(list, /function markUnread/);
   assert.match(list, /v: null/);
   assert.match(shell, /class="action star-action"/);
+  assert.match(shell, /const STREAM_STAR_PREFIX = '@stream:'/, '個別ページ側もカードスターを識別する');
+  assert.match(shell, /starredSources = starredSources\.filter\(isValidStarValue\)/, '個別ページから保存してもカードスターを残す');
   assert.match(shell, /class="action unread-action"/);
   assert.match(review, /Claudeへの依頼/);
   assert.match(review, /\/inbox/);
