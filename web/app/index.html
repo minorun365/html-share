@@ -1180,10 +1180,12 @@ body.page-controls-hidden #page-actions {
 
   async function buildTimedShareUrl(page, mode, days) {
     const body = JSON.stringify({ slug: page.slug, scope: mode === 'i' ? 'internal' : 'public', days });
+    const bodyHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
+    const bodyHashHex = Array.from(new Uint8Array(bodyHash)).map(b => b.toString(16).padStart(2, '0')).join('');
     const response = await fetch('/api/owner/shares', {
       method: 'POST',
       cache: 'no-store',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', 'x-amz-content-sha256': bodyHashHex },
       body,
     });
     const result = await response.json().catch(() => ({}));
