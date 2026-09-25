@@ -192,6 +192,7 @@ function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: H
         days: config.content.ownerLinkDays,
       }),
     })),
+    shelf: manifest.shelf,
   };
 }
 

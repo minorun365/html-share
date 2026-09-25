@@ -83,6 +83,17 @@ function cleanSourceList(value: unknown, name: string, maximum: number): string[
   return [...new Set(value.map((item) => clean(item, name, 500, true)))];
 }
 
+/**
+ * 進行中の棚から ✓ で下ろした項目の id。
+ * 棚を知らない古いクライアントは shelfDone を送らないので、そのときは保存済みの値を残す。
+ */
+export function cleanShelfDone(value: unknown, stored: unknown): string[] {
+  if (value === undefined) {
+    return Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : [];
+  }
+  return cleanSourceList(value, 'shelfDone', 300);
+}
+
 function isoOrNull(value: unknown): string | null {
   const text = typeof value === 'string' ? value.trim() : '';
   return text && !Number.isNaN(Date.parse(text)) ? text : null;
@@ -268,6 +279,7 @@ export async function handler(event: any): Promise<any> {
           recentSources: result.Item?.recentSources ?? [],
           hiddenSources: result.Item?.hiddenSources ?? [],
           readMarks: result.Item?.readMarks ?? null,
+          shelfDone: result.Item?.shelfDone ?? [],
           updatedAt: result.Item?.updatedAt ?? null,
         });
       }
@@ -277,12 +289,16 @@ export async function handler(event: any): Promise<any> {
         const recentSources = cleanSourceList(body.recentSources ?? [], 'recentSources', 6);
         const hiddenSources = cleanSourceList(body.hiddenSources ?? [], 'hiddenSources', 500);
         const readMarks = cleanReadMarks(body.readMarks ?? {}, 800);
+        const stored = body.shelfDone === undefined
+          ? (await ddb.send(new GetCommand({ TableName: table, Key: PREFERENCES_KEY, ConsistentRead: true }))).Item?.shelfDone
+          : undefined;
+        const shelfDone = cleanShelfDone(body.shelfDone, stored);
         const updatedAt = new Date().toISOString();
         await ddb.send(new PutCommand({
           TableName: table,
-          Item: { ...PREFERENCES_KEY, starredSources, recentSources, hiddenSources, readMarks, updatedAt },
+          Item: { ...PREFERENCES_KEY, starredSources, recentSources, hiddenSources, readMarks, shelfDone, updatedAt },
         }));
-        return json(200, { starredSources, recentSources, hiddenSources, readMarks, updatedAt });
+        return json(200, { starredSources, recentSources, hiddenSources, readMarks, shelfDone, updatedAt });
       }
       if (verb === 'POST' && path === '/api/owner/shares') {
         const body = parseBody(event);

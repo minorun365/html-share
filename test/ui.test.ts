@@ -39,6 +39,10 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /function refreshInboxDot/);
   assert.match(dashboard, /\/api\/owner\/reviews/);
   assert.match(dashboard, /function configureShareOptions/);
+  assert.match(dashboard, /function appendShelf/);
+  assert.match(dashboard, /const SHELF_DONE_KEY = 'mb_shelf_done'/);
+  assert.match(dashboard, /shelfDone: \[\.\.\.shelfDone\]/, '✓で下ろした印を本人設定として同期する');
+  assert.match(dashboard, /appendDateGroup\('スター', pinnedStreams\);\s*\/\/[^\n]*\n\s*if \(!filterText\.trim\(\)\) appendShelf\(\);/, '棚はスターの直後に置き、検索中は出さない');
   assert.match(dashboard, /manifest\.internalSharing/);
   assert.match(dashboard, /manifest\.maximumShareDays/);
   assert.match(shell, /function configureShareOptions/);

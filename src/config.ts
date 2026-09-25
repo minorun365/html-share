@@ -12,6 +12,24 @@ export interface PageConfig {
   streamLabel?: string;
 }
 
+/**
+ * 進行中の棚の1項目。ページではなく「まだ終わっていない仕事」の単位で持つ。
+ * stream を書けばそのテーマの最新ページへ、url を書けばそのリンクへ飛ぶ（どちらか一方）。
+ */
+export interface ShelfItemConfig {
+  id: string;
+  title: string;
+  stream?: string;
+  url?: string;
+  /** 締切（YYYY-MM-DD）。翌日を過ぎると棚から自動で消える */
+  due?: string;
+  note?: string;
+  /** url 項目を棚へ載せた日（YYYY-MM-DD）。締切なしの並び順と「◯日動きなし」に使う */
+  added?: string;
+  /** 書いておくと棚に出さない */
+  done: boolean;
+}
+
 export interface HtmlShareConfig {
   ownerEmail: string;
   aws: {
@@ -40,6 +58,8 @@ export interface HtmlShareConfig {
     ogImageUrl?: string | false;
     /** カードの大きさ。省略すると summary（各媒体でいちばん小さいカード） */
     ogCardType?: 'summary' | 'summary_large_image';
+    /** 進行中の棚。省略すると棚を出さない */
+    shelf?: ShelfItemConfig[];
   };
   configFile: string;
   baseDir: string;
@@ -75,6 +95,56 @@ function httpsUrl(value: unknown, name: string): string {
   }
   if (parsed.protocol !== 'https:') throw new Error(`${name} must use https`);
   return parsed.toString();
+}
+
+/** 棚の締切や追加日。YAML が日付として読んだ値も文字列へ戻す */
+function isoDate(value: unknown, name: string): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const result = value instanceof Date ? value.toISOString().slice(0, 10) : String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(result) || Number.isNaN(Date.parse(result))) {
+    throw new Error(`${name} must be a date like 2026-01-31`);
+  }
+  return result;
+}
+
+/** 棚のリンク。画面から開く先なので http(s) だけを許す */
+function linkUrl(value: unknown, name: string): string {
+  const result = text(value, name);
+  let parsed: URL;
+  try {
+    parsed = new URL(result);
+  } catch {
+    throw new Error(`${name} must be an absolute http(s) URL`);
+  }
+  if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') throw new Error(`${name} must use http or https`);
+  return parsed.toString();
+}
+
+function shelfItems(value: unknown): ShelfItemConfig[] {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error('content.shelf must be an array');
+  const seen = new Set<string>();
+  return value.map((item: unknown, index: number) => {
+    const name = `content.shelf[${index}]`;
+    if (!item || typeof item !== 'object' || Array.isArray(item)) throw new Error(`${name} must be an object`);
+    const record = item as Record<string, unknown>;
+    const id = text(record.id, `${name}.id`);
+    if (seen.has(id)) throw new Error(`${name}.id is duplicated: ${id}`);
+    seen.add(id);
+    const stream = typeof record.stream === 'string' && record.stream.trim() ? record.stream.trim() : undefined;
+    const url = record.url === undefined || record.url === null ? undefined : linkUrl(record.url, `${name}.url`);
+    if (Boolean(stream) === Boolean(url)) throw new Error(`${name} needs exactly one of stream or url`);
+    return {
+      id,
+      title: typeof record.title === 'string' && record.title.trim() ? record.title.trim() : id,
+      stream,
+      url,
+      due: isoDate(record.due, `${name}.due`),
+      note: typeof record.note === 'string' && record.note.trim() ? record.note.trim() : undefined,
+      added: isoDate(record.added, `${name}.added`),
+      done: Boolean(record.done),
+    };
+  });
 }
 
 function cidr(value: unknown, name: string): string {
@@ -166,6 +236,7 @@ export function loadConfig(file?: string): HtmlShareConfig {
         : content.ogCardType === undefined || content.ogCardType === null || content.ogCardType === 'summary'
           ? undefined
           : (() => { throw new Error('content.ogCardType must be "summary" or "summary_large_image"'); })(),
+      shelf: shelfItems(content.shelf),
     },
     configFile,
     baseDir: path.dirname(configFile),

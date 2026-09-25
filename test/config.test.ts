@@ -96,3 +96,36 @@ test('defaults the link preview name and rejects unsafe image URLs', () => {
   writeFileSync(config, `${base}\n  ogImageUrl: none\n`);
   assert.equal(loadConfig(config).content.ogImageUrl, false);
 });
+
+test('loads shelf items and rejects ambiguous ones', () => {
+  const { config } = fixture();
+  const base = readFileSync(config, 'utf8');
+  assert.deepEqual(loadConfig(config).content.shelf, []);
+
+  writeFileSync(config, `${base}  shelf:
+    - id: plan
+      title: Launch plan
+      stream: release-notes
+      due: 2026-01-31
+    - id: thread
+      title: Reply to the thread
+      url: https://example.com/thread
+      added: 2026-01-20
+      note: waiting for a reply
+`);
+  const shelf = loadConfig(config).content.shelf ?? [];
+  assert.equal(shelf[0].due, '2026-01-31');
+  assert.equal(shelf[0].stream, 'release-notes');
+  assert.equal(shelf[1].url, 'https://example.com/thread');
+  assert.equal(shelf[1].note, 'waiting for a reply');
+  assert.equal(shelf[1].done, false);
+
+  writeFileSync(config, `${base}  shelf:\n    - id: both\n      stream: a\n      url: https://example.com/\n`);
+  assert.throws(() => loadConfig(config), /exactly one of stream or url/);
+  writeFileSync(config, `${base}  shelf:\n    - id: dup\n      url: https://example.com/\n    - id: dup\n      url: https://example.com/\n`);
+  assert.throws(() => loadConfig(config), /duplicated/);
+  writeFileSync(config, `${base}  shelf:\n    - id: bad\n      url: "javascript:alert(1)"\n`);
+  assert.throws(() => loadConfig(config), /must use http or https/);
+  writeFileSync(config, `${base}  shelf:\n    - id: bad\n      url: https://example.com/\n      due: next week\n`);
+  assert.throws(() => loadConfig(config), /must be a date/);
+});

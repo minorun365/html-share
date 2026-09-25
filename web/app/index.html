@@ -316,6 +316,32 @@ body.searching.has-query #search-clear { display: flex; }
 }
 .more:hover { background: #f4f7fc; }
 
+/* ── 進行中の棚。スターの下に1枚だけ置く。1行＝1つのまだ終わっていない仕事 ── */
+.shelf {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(23rem, 100%), 1fr));
+  column-gap: 1.25rem; padding: .35rem 0;
+  border: 1px solid rgba(14, 13, 106, .06); border-radius: 1rem; background: var(--panel);
+  box-shadow: 0 1px 2px rgba(26, 26, 31, .03), 0 10px 26px rgba(14, 13, 106, .055);
+}
+.shelf .row { padding-right: 2.6rem; }
+.shelf .row .t { display: flex; flex-direction: column; color: var(--ink); font-weight: 600; }
+.shelf .row .t > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shelf .sub-line {
+  display: block; font-size: .7rem; font-weight: 400; color: var(--mut);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.shelf .due {
+  flex: none; font-size: .7rem; font-weight: 700; color: var(--mut);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.shelf .due.soon { color: var(--gold-deep); }
+.row-wrap > .shelf-done {
+  position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
+  width: 1.9rem; height: 1.9rem; border: 0; border-radius: 50%;
+  background: transparent; color: var(--mut); font-size: .95rem; cursor: pointer;
+}
+.row-wrap > .shelf-done:hover { background: var(--blue-soft); color: var(--blue); }
+
 .empty { padding: 4rem 0; text-align: center; color: var(--mut); font-size: .85rem; }
 
 /* 削除済みは常設の入口を持たせず、一覧の末尾へ控えめに置く */
@@ -608,10 +634,13 @@ body.page-controls-hidden #page-actions {
   const STREAM_STAR_PREFIX = '@stream:';
   const HIDDEN_KEY = 'mb_hidden_pages';
   const READ_KEY = 'mb_read_marks';
+  const SHELF_DONE_KEY = 'mb_shelf_done';
   const CAN_SYNC = location.protocol === 'https:';
   let allPages = [], pages = [], current = null, meta = null;
   let starred = new Set();
   let hiddenSources = new Set();
+  // 進行中の棚から ✓ で下ろした項目の id。棚の台帳（設定ファイル）は書き換えず、本人設定として同期する
+  let shelfDone = new Set();
   // { ページの source: 開いたときの更新日時 }。更新日時ごと持つので、再更新で自動的に未読へ戻る
   let readMarks = {};
   let knowsReadMarks = false;
@@ -629,6 +658,10 @@ body.page-controls-hidden #page-actions {
   try {
     const saved = JSON.parse(localStorage.getItem(HIDDEN_KEY) ?? '[]');
     if (Array.isArray(saved)) hiddenSources = new Set(saved.filter((item) => typeof item === 'string'));
+  } catch { /* 壊れた保存値は空として扱う */ }
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHELF_DONE_KEY) ?? '[]');
+    if (Array.isArray(saved)) shelfDone = new Set(saved.filter((item) => typeof item === 'string'));
   } catch { /* 壊れた保存値は空として扱う */ }
   try {
     const raw = localStorage.getItem(READ_KEY);
@@ -669,6 +702,7 @@ body.page-controls-hidden #page-actions {
       localStorage.removeItem('mb_recent_pages');
       localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenSources]));
       localStorage.setItem(READ_KEY, JSON.stringify(readMarks));
+      localStorage.setItem(SHELF_DONE_KEY, JSON.stringify([...shelfDone]));
       knowsReadMarks = true;
     } catch { /* noop */ }
   }
@@ -737,6 +771,7 @@ body.page-controls-hidden #page-actions {
       recentSources: [],
       hiddenSources: [...hiddenSources],
       readMarks,
+      shelfDone: [...shelfDone],
     });
     await preferencesApi({ method: 'PUT', body });
   }
@@ -766,6 +801,9 @@ body.page-controls-hidden #page-actions {
     const validStreams = new Set(allPages.map(pageStream));
     starred = new Set([...starred].filter((value) => isValidStarValue(value, validSources, validStreams)));
     hiddenSources = new Set([...hiddenSources].filter((source) => validSources.has(source)));
+    // 棚から消えた項目の印は持ち続けない（保存の上限に当たらないようにする）
+    const validShelf = new Set((meta?.shelf ?? []).map((item) => item.id));
+    shelfDone = new Set([...shelfDone].filter((id) => validShelf.has(id)));
     pruneReadMarks(validSources);
     pages = allPages.filter((page) => !hiddenSources.has(page.source));
     updateTrashToggle();
@@ -782,6 +820,10 @@ body.page-controls-hidden #page-actions {
         starred = new Set((saved.starredSources ?? [])
           .filter((value) => isValidStarValue(value, validSources, validStreams)));
         hiddenSources = new Set((saved.hiddenSources ?? []).filter((source) => validSources.has(source)));
+        // 片方の端末でだけ下ろした印も失わないよう、手元と保存値を合わせる
+        const remoteShelf = new Set((saved.shelfDone ?? []).filter((id) => typeof id === 'string'));
+        const shelfNeedsPush = [...shelfDone].some((id) => !remoteShelf.has(id));
+        shelfDone = new Set([...remoteShelf, ...shelfDone].filter((id) => validShelf.has(id)));
         const needsPush = hasUnsyncedReadMarks(saved.readMarks);
         readMarks = L.mergeReadMarks(readMarks, saved.readMarks ?? {});
         pruneReadMarks(validSources);
@@ -789,7 +831,7 @@ body.page-controls-hidden #page-actions {
         const firstRun = !hadLocalReadMarks && saved.readMarks === null;
         if (firstRun) seedReadMarks();
         saveLocalPreferences();
-        if (needsPush || firstRun) await persistPreferencesRemote();
+        if (needsPush || firstRun || shelfNeedsPush) await persistPreferencesRemote();
       } else {
         if (!hadLocalReadMarks) seedReadMarks();
         saveLocalPreferences();
@@ -1055,7 +1097,100 @@ body.page-controls-hidden #page-actions {
       .toLowerCase().includes(needle));
   }
 
-  // ── トップ: スター付き → 日付の区切り（中はテーマ単位の塊）
+  /** 棚の締切を「あと◯日・9/30（水）」の形にする。日付は JST の暦日で数える */
+  function shelfDueLabel(due) {
+    if (!due) return { text: '', soon: false };
+    const W = '日月火水木金土';
+    const [y, m, d] = due.split('-').map(Number);
+    const dueDay = Date.UTC(y, m - 1, d);
+    const now = new Date(Date.now() + 9 * 3600e3);
+    const today = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+    const diff = Math.round((dueDay - today) / 86400e3);
+    const date = `${m}/${d}（${W[new Date(dueDay).getUTCDay()]}）`;
+    const rel = diff < 0 ? '昨日まで' : diff === 0 ? '今日' : diff === 1 ? '明日' : `あと${diff}日`;
+    return { text: `${rel}・${date}`, soon: diff <= 3 };
+  }
+
+  /** メモ・ページ数（またはリンク）・最終更新。7日以上動きが無ければ「◯日動きなし」 */
+  function shelfSubLine(item) {
+    const parts = [];
+    if (item.note) parts.push(item.note);
+    parts.push(item.url ? 'ページなし・リンクを開く' : `${item.count}ページ`);
+    if (item.last) {
+      const idle = Math.floor((Date.now() - Date.parse(item.last)) / 86400e3);
+      parts.push(idle >= 7 ? `${idle}日動きなし` : `更新 ${shortTime(item.last)}`);
+    }
+    return parts.join('・');
+  }
+
+  function doneShelfItem(item) {
+    shelfDone.add(item.id);
+    queuePreferenceSave();
+    renderHome();
+  }
+
+  function appendShelf() {
+    const items = (meta?.shelf ?? []).filter((item) => !shelfDone.has(item.id));
+    if (items.length === 0) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'dgroup';
+    const head = document.createElement('div');
+    head.className = 'dhead';
+    const title = document.createElement('span');
+    title.textContent = '進行中';
+    const count = document.createElement('span');
+    count.className = 'dcount';
+    count.textContent = `${items.length}件`;
+    head.append(title, count);
+    const body = document.createElement('div');
+    body.className = 'shelf';
+    for (const item of items) {
+      const row = document.createElement('div');
+      row.className = 'row-wrap';
+      const link = document.createElement('a');
+      link.className = 'row';
+      const text = document.createElement('div');
+      text.className = 't';
+      const name = document.createElement('span');
+      name.textContent = item.title;
+      const sub = document.createElement('span');
+      sub.className = 'sub-line';
+      sub.textContent = shelfSubLine(item);
+      text.append(name, sub);
+      link.append(text);
+      const due = shelfDueLabel(item.due);
+      if (due.text) {
+        const chip = document.createElement('span');
+        chip.className = `due${due.soon ? ' soon' : ''}`;
+        chip.textContent = due.text;
+        link.append(chip);
+      }
+      if (item.url) {
+        link.href = item.url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+      } else {
+        const page = allPages.find((candidate) => candidate.slug === item.slug);
+        if (!page) continue;
+        L.bindOpen(link, page, openPage);
+      }
+      const done = document.createElement('button');
+      done.type = 'button';
+      done.className = 'shelf-done';
+      done.textContent = '✓';
+      done.title = '棚から下ろす（ページは消えません）';
+      done.setAttribute('aria-label', `${item.title}を棚から下ろす`);
+      done.addEventListener('click', () => doneShelfItem(item));
+      row.append(link, done);
+      body.append(row);
+    }
+    if (body.childElementCount === 0) return;
+    count.textContent = `${body.childElementCount}件`;
+    wrap.append(head, body);
+    tilesEl.append(wrap);
+  }
+
+  // ── トップ: スター付き → 進行中の棚 → 日付の区切り（中はテーマ単位の塊）
   function renderHome() {
     tilesEl.replaceChildren();
     const items = visiblePages();
@@ -1106,6 +1241,8 @@ body.page-controls-hidden #page-actions {
       rest.push(...stream.pages.filter((page) => !isStarred(page)));
     }
     if (pinnedStreams.length > 0) appendDateGroup('スター', pinnedStreams);
+    // 検索中は探している1件を見せたいので、棚は出さない
+    if (!filterText.trim()) appendShelf();
 
     // テーマは最終更新日で区切りが決まる。今日1件でも触ったテーマは、
     // 過去の版を引き連れて「今日」へ上がってくる

@@ -41,3 +41,19 @@ content:
   # summary_large_image は 1200x630 前後の横長画像を前提にした見せ方で、
   # 正方形やロゴを渡すと引き伸ばされます。
   # ogCardType: summary_large_image
+
+  # ── 進行中の棚 ────────────────────────────────────────────────────
+  # 一覧のスターの下に「まだ終わっていない仕事」を1行ずつ並べます。省略すると棚は出ません。
+  # stream を書くとそのテーマの最新ページへ、url を書くとそのリンクへ飛びます（どちらか一方）。
+  # due（YYYY-MM-DD）の翌日を過ぎた項目と done: true の項目は、publish 時に棚から落ちます。
+  # 画面の ✓ で下ろした印は本人設定として同期され、この設定ファイルは書き換えません。
+  # shelf:
+  #   - id: demo-review
+  #     title: デモレポートの見直し
+  #     stream: demo
+  #     due: 2026-01-31
+  #     note: 数字の出典を確認する
+  #   - id: team-thread
+  #     title: チャットの問い合わせに返信
+  #     url: https://chat.example.com/threads/12345
+  #     added: 2026-01-20

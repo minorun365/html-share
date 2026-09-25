@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { HtmlShareConfig, PageConfig } from './config.js';
+import type { HtmlShareConfig, PageConfig, ShelfItemConfig } from './config.js';
 import { resolveFromConfig, validatedRoots } from './config.js';
 
 function packageRoot(): string {
@@ -58,11 +58,73 @@ export interface BuiltPage {
   objectKey: string;
 }
 
+/** 棚の1行。stream 項目は最新ページの slug・件数・最終更新、url 項目はリンクと追加日を持つ */
+export interface ShelfEntry {
+  id: string;
+  title: string;
+  due: string | null;
+  note: string | null;
+  stream?: string;
+  slug?: string;
+  count?: number;
+  url?: string;
+  last: string | null;
+}
+
 export interface BuildManifest {
   generatedAt: string;
   internalSharing: boolean;
   maximumShareDays: number;
   pages: BuiltPage[];
+  shelf: ShelfEntry[];
+}
+
+const DAY_MS = 86400e3;
+
+/** 棚の日付は JST の暦日で比べる */
+function jstToday(now: Date): string {
+  return new Date(now.getTime() + 9 * 3600e3).toISOString().slice(0, 10);
+}
+
+/**
+ * 進行中の棚を manifest 用に解決する。
+ * done を書いた項目と、締切の翌日を過ぎた項目はここで落とす（台帳から消し忘れても棚に残らない）。
+ * 締切の近い順に並べ、締切の無いものは後ろで最近動いた順にする。
+ */
+export function buildShelf(items: ShelfItemConfig[], pages: BuiltPage[], now = new Date()): ShelfEntry[] {
+  const today = Date.parse(jstToday(now));
+  const out: ShelfEntry[] = [];
+  for (const item of items) {
+    if (item.done) continue;
+    if (item.due && Date.parse(item.due) + DAY_MS < today) continue;
+    const entry: ShelfEntry = { id: item.id, title: item.title, due: item.due ?? null, note: item.note ?? null, last: null };
+    if (item.stream) {
+      const inStream = pages
+        .filter((page) => page.stream === item.stream)
+        .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+      if (inStream.length === 0) {
+        console.warn(`content.shelf: ${item.id} のテーマ ${item.stream} にページがないので、棚に出しません`);
+        continue;
+      }
+      Object.assign(entry, {
+        stream: item.stream,
+        slug: inStream[0].slug,
+        count: inStream.length,
+        last: inStream[0].updatedAt,
+      });
+    } else if (item.url) {
+      Object.assign(entry, { url: item.url, last: item.added ?? null });
+    } else {
+      continue;
+    }
+    out.push(entry);
+  }
+  out.sort((left, right) => {
+    if (left.due && right.due) return left.due.localeCompare(right.due);
+    if (left.due || right.due) return left.due ? -1 : 1;
+    return String(right.last ?? '').localeCompare(String(left.last ?? ''));
+  });
+  return out;
 }
 
 export function slugify(value: string): string {
@@ -287,6 +349,7 @@ export function buildSite(config: HtmlShareConfig, buildRoot: string): BuildMani
     internalSharing: config.content.allowedInternalCidrs.length > 0,
     maximumShareDays: config.content.maximumShareDays,
     pages,
+    shelf: buildShelf(config.content.shelf ?? [], pages),
   };
   writeFileSync(path.join(buildRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
   return manifest;
