@@ -623,14 +623,23 @@ body.page-controls-hidden #page-actions {
 .shelf-pin {
   flex: none; width: 2rem; height: 2rem; margin: -.35rem -.3rem -.35rem .1rem;
   display: inline-flex; align-items: center; justify-content: center;
-  border: 0; border-radius: 50%; background: transparent; color: var(--mut); cursor: pointer;
-  transition: background .12s ease, color .12s ease;
+  border: 0; border-radius: .45rem; background: transparent; color: var(--ink-faint); cursor: pointer;
+  transition: color .16s ease, background .16s ease, transform .16s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.shelf-pin:hover { background: var(--blue-soft); color: var(--blue); }
-.shelf-pin svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.shelf-pin:active { transform: scale(.82); }
+.shelf-pin svg {
+  width: 1rem; height: 1rem; transform: rotate(35deg);
+  fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
 .shelf-pin.on { color: var(--blue); }
-.shelf-pin.on .fill { fill: var(--blue); stroke: var(--blue); }
-.shelf-pin.on .mark { stroke: #fff; stroke-width: 2; }
+.shelf-pin.on .head { fill: currentColor; }
+@media (hover: hover) {
+  .shelf-pin:hover { background: var(--chip); color: var(--blue); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .shelf-pin { transition: none; }
+}
 </style>
 </head>
 <body>
@@ -1129,9 +1138,9 @@ body.page-controls-hidden #page-actions {
     b.setAttribute('aria-pressed', String(on));
     b.title = on ? '進行中から外す' : '進行中に入れる';
     b.setAttribute('aria-label', `${stream.label}を${b.title}`);
-    b.innerHTML = on
-      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="11" rx="5.5" class="fill"/><path d="M8.5 12.2l2.3 2.3 4.7-4.7" class="mark"/></svg>'
-      : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="11" rx="5.5"/><path d="M12 9.3v5.4M9.3 12h5.4"/></svg>';
+    // 押しピン（Lucide の pin と同じ形。ISC License）。☆ と同じ線の太さ・大きさ・色に揃え、入れたら青く塗る
+    b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/>'
+      + '<path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" class="head"/></svg>';
     b.addEventListener('click', (event) => {
       event.stopPropagation();
       if (item) doneShelfItem(item);

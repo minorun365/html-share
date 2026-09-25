@@ -20,6 +20,12 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.doesNotMatch(dashboard, /className = 'tlast'/, 'カード見出しに更新時刻を置かない（各行にあるため）');
   assert.match(dashboard, /\.tcount \{[^}]*margin-left: auto;[^}]*white-space: nowrap;/, '件数は折り返さず右へ寄せる');
   assert.match(dashboard, /function shelfPinButton[\s\S]{0,1200}aria-pressed[\s\S]{0,1200}if \(item\) doneShelfItem\(item\);\s*else addShelfStream\(stream\.key\);/, '進行中へ入れるボタンは登録済みなら外し、未登録なら既存の追加処理で足す');
+  assert.match(dashboard, /Lucide の pin[^\n]*ISC License/, '押しピンの出典とライセンスを残す');
+  assert.match(dashboard, /class="head"\/><\/svg>/, '押しピンの頭部に塗り分け用の class を付ける');
+  assert.match(dashboard, /\.shelf-pin svg \{[^}]*transform: rotate\(35deg\);/, '押しピンは35度傾ける');
+  assert.match(dashboard, /\.shelf-pin\.on \.head \{ fill: currentColor; \}/, '登録済みは頭部を青で塗る');
+  assert.match(dashboard, /\.shelf-pin \{[^}]*border-radius: \.45rem;[^}]*color: var\(--ink-faint\);/, '角丸と色を☆に揃える');
+  assert.match(dashboard, /\.shelf-pin:active \{ transform: scale\(\.82\); \}/, '押したときの縮みを☆に揃える');
   assert.match(dashboard, /b\.title = on \? '進行中から外す' : '進行中に入れる';\s*b\.setAttribute\('aria-label'/, '進行中へ入れるボタンに title と aria-label を付ける');
   assert.match(dashboard, /const pageIsStarred = \(page\) => isStarred\(page\) \|\| starred\.has\(streamStarId\(pageStream\(page\)\)\)/, 'カードのスターはテーマ丸ごとスターの絞り込みに入れる');
   assert.match(dashboard, /shelfFilter === STAR_FILTER[\s\S]{0,40}visiblePages\(\)\.filter\(pageIsStarred\)/, 'スターのチップで一覧を絞り込む');
