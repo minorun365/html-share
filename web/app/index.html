@@ -319,7 +319,7 @@ body.searching.has-query #search-clear { display: flex; }
 }
 .more:hover { background: #f4f7fc; }
 
-/* ── 絞り込みチップ。ヘッダーの帯の2段目に、すべて／スター／進行中の仕事を横に並べる ──
+/* ── 絞り込みチップ。ヘッダーの帯の2段目に、すべて／進行中の仕事を横に並べる ──
    一覧のカードと同じ見た目にすると「読むもの」と「切り替えるもの」の区別が消えるので、
    一覧の中ではなくヘッダーへ置く。スクロールしてもヘッダーごと残る */
 .chips {
@@ -805,6 +805,7 @@ body.page-controls-hidden #page-actions {
   const pageStreamLabel = (page) => page.streamLabel ?? pageStream(page);
   const streamStarId = (streamKey) => `${STREAM_STAR_PREFIX}${streamKey}`;
   const isStreamStarValue = (value) => value.startsWith(STREAM_STAR_PREFIX);
+  const isStreamStarred = (stream) => starred.has(streamStarId(stream.key));
 
   function isValidStarValue(value, validSources, validStreams) {
     if (validSources.has(value)) return true;
@@ -1266,7 +1267,6 @@ body.page-controls-hidden #page-actions {
     renderHome();
   }
 
-  const STAR_FILTER = '@star';
   /** テーマごとの名前・件数・最終更新（削除済みは数えない） */
   function streamSummaries() {
     const map = new Map();
@@ -1296,8 +1296,6 @@ body.page-controls-hidden #page-actions {
       });
     return [...ledger, ...added];
   }
-  // ページのスターと、テーマ見出し（カード）のスターの両方を「スター」の絞り込みに含める
-  const pageIsStarred = (page) => isStarred(page) || starred.has(streamStarId(pageStream(page)));
 
   /** 締切をチップ用に短くする（「今日」「明日」「5日」）。3日以内は強調 */
   function chipDue(due) {
@@ -1340,7 +1338,7 @@ body.page-controls-hidden #page-actions {
     return el;
   }
 
-  /** ヘッダーの絞り込みチップ。すべて → スター → 棚の項目（締切の近い順） */
+  /** ヘッダーの絞り込みチップ。すべて → 棚の項目（締切の近い順） */
   function renderChips() {
     const bar = $('chips');
     bar.replaceChildren();
@@ -1351,10 +1349,6 @@ body.page-controls-hidden #page-actions {
     if (showingTrash || filterText.trim()) return;
     const select = (key) => () => { shelfFilter = shelfFilter === key ? null : key; renderHome(); };
     bar.append(chip('すべて', { on: shelfFilter === null, onClick: () => { shelfFilter = null; renderHome(); } }));
-    const starCount = pages.filter(pageIsStarred).length;
-    if (starCount > 0) {
-      bar.append(chip('★ スター', { on: shelfFilter === STAR_FILTER, count: starCount, onClick: select(STAR_FILTER) }));
-    }
     for (const item of liveShelf()) {
       if (item.url) {
         bar.append(chip(item.title, {
@@ -1446,7 +1440,7 @@ body.page-controls-hidden #page-actions {
     note.hidden = false;
     note.replaceChildren();
     const b = document.createElement('b');
-    b.textContent = shelfFilter === STAR_FILTER ? '★ スター' : (item?.title ?? '');
+    b.textContent = item?.title ?? '';
     const parts = [];
     if (item?.due) parts.push(shelfDueLabel(item.due).text);
     if (item?.note) parts.push(item.note);
@@ -1454,18 +1448,15 @@ body.page-controls-hidden #page-actions {
     note.append(b, document.createTextNode(`　${parts.join('・')}`));
   }
 
-  // ── トップ: 日付の区切り（中はテーマ単位の塊）。スターと進行中はヘッダーのチップで絞る
+  // ── トップ: スター付き → 日付の区切り（中はテーマ単位の塊）。進行中はヘッダーのチップで絞る
   function renderHome() {
     tilesEl.replaceChildren();
     // チップで選んだ絞り込みは、下ろされたり検索を始めたり棚から消えたりしたら解除する
     const shelfStreams = new Set(liveShelf().filter((item) => item.stream).map((item) => item.stream));
-    shelfStreams.add(STAR_FILTER);
     if (shelfFilter && (showingTrash || filterText.trim() || !shelfStreams.has(shelfFilter))) shelfFilter = null;
-    const items = shelfFilter === STAR_FILTER
-      ? visiblePages().filter(pageIsStarred)
-      : shelfFilter
-        ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
-        : visiblePages();
+    const items = shelfFilter
+      ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
+      : visiblePages();
     renderChips();
     renderFilterNote(items.length);
 
@@ -1503,8 +1494,19 @@ body.page-controls-hidden #page-actions {
       return;
     }
 
-    // スターと進行中はヘッダーのチップへ移した。一覧は日付の区切りだけにする
-    const rest = items;
+    // スターは一覧の先頭の段に固定する。チップで絞り込んだときも、絞った結果に同じ並べ方をする
+    const pinnedStreams = [];
+    const rest = [];
+    for (const stream of groupByStream(items)) {
+      if (isStreamStarred(stream)) {
+        pinnedStreams.push(stream);
+        continue;
+      }
+      const pinnedPages = stream.pages.filter(isStarred);
+      if (pinnedPages.length > 0) pinnedStreams.push({ ...stream, pages: pinnedPages });
+      rest.push(...stream.pages.filter((page) => !isStarred(page)));
+    }
+    if (pinnedStreams.length > 0) appendDateGroup('スター', pinnedStreams);
 
     // テーマは最終更新日で区切りが決まる。今日1件でも触ったテーマは、
     // 過去の版を引き連れて「今日」へ上がってくる

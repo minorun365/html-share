@@ -27,9 +27,12 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /\.shelf-pin \{[^}]*border-radius: \.45rem;[^}]*color: var\(--ink-faint\);/, '角丸と色を☆に揃える');
   assert.match(dashboard, /\.shelf-pin:active \{ transform: scale\(\.82\); \}/, '押したときの縮みを☆に揃える');
   assert.match(dashboard, /b\.title = on \? '進行中から外す' : '進行中に入れる';\s*b\.setAttribute\('aria-label'/, '進行中へ入れるボタンに title と aria-label を付ける');
-  assert.match(dashboard, /const pageIsStarred = \(page\) => isStarred\(page\) \|\| starred\.has\(streamStarId\(pageStream\(page\)\)\)/, 'カードのスターはテーマ丸ごとスターの絞り込みに入れる');
-  assert.match(dashboard, /shelfFilter === STAR_FILTER[\s\S]{0,40}visiblePages\(\)\.filter\(pageIsStarred\)/, 'スターのチップで一覧を絞り込む');
-  assert.doesNotMatch(dashboard, /appendDateGroup\('スター'/, 'スター段は一覧に出さない');
+  assert.match(dashboard, /if \(isStreamStarred\(stream\)\)[\s\S]{0,160}pinnedStreams\.push\(stream\)/, 'カードのスターはテーマ丸ごとスター段へ移す');
+  assert.match(dashboard, /stream\.pages\.filter\(isStarred\)[\s\S]{0,200}rest\.push\(\.\.\.stream\.pages\.filter\(\(page\) => !isStarred\(page\)\)\)/, 'ページのスターはそのページだけスター段へ移す');
+  assert.match(dashboard, /for \(const stream of groupByStream\(items\)\)/, 'チップで絞った結果にも同じ並べ方をする');
+  assert.match(dashboard, /appendDateGroup\('スター', pinnedStreams\)/, 'スター段を一覧の先頭に出す');
+  assert.doesNotMatch(dashboard, /chip\('★ スター'/, 'スターをチップ列に置かない');
+  assert.doesNotMatch(dashboard, /STAR_FILTER/, 'スター用の絞り込み状態を持たない');
   assert.match(dashboard, /削除済み/);
   assert.match(dashboard, /api\/owner\/shares/);
   assert.match(list, /function markUnread/);
@@ -57,7 +60,6 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /shelfDone: \[\.\.\.shelfDone\]/, '✕で下ろした印を本人設定として同期する');
   assert.match(dashboard, /let shelfFilter = null;/);
   assert.match(dashboard, /chip\('すべて', \{ on: shelfFilter === null/, '「すべて」は絞り込みなしで選択状態');
-  assert.match(dashboard, /if \(starCount > 0\) \{\s*bar\.append\(chip\('★ スター'/, 'スター付きが1件以上のときだけスターのチップを出す');
   assert.match(dashboard, /const select = \(key\) => \(\) => \{ shelfFilter = shelfFilter === key \? null : key; renderHome\(\); \};/, 'チップは押すたびに絞り込みを切り替える');
   assert.match(dashboard, /onClick: select\(item\.stream\),\s*onDone: \(\) => doneShelfItem\(item\)/, 'テーマのチップで絞り込み、選択中の✕で棚から下ろす');
   assert.match(dashboard, /if \(onDone && \(on \|\| chipEditing\)\)/, '✕は選択中のチップと、編集中の全チップに出す');
