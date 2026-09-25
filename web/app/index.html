@@ -125,14 +125,6 @@ iframe { flex: 1; width: 100%; border: 0; background: var(--panel); }
   fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round; opacity: .85;
 }
-.brand-meta {
-  /* 更新時刻だけを、右のアイコンの手前に小さく添える。右の細い線でアイコンと区切る */
-  flex: none; margin-right: .5rem; padding-right: .7rem;
-  border-right: 1px solid rgba(255, 255, 255, .22);
-  font-size: .7rem; font-weight: 500; letter-spacing: .04em;
-  color: rgba(255, 255, 255, .62); font-variant-numeric: tabular-nums; white-space: nowrap;
-}
-body.searching .brand-meta { display: none; }
 .topbar-actions { flex: none; margin-left: auto; margin-right: -.45rem; display: flex; align-items: center; gap: .15rem; }
 
 /* 右上の道具はアイコンだけにする。枠線つきの丸ボタンの真下に絞り込みチップが並ぶと、
@@ -522,8 +514,6 @@ body.page-controls-hidden #page-actions {
       );
   }
   .topbar-inner { height: 3.2rem; gap: .5rem; }
-  /* 画面が狭いので、件数の表示は検索・承認依頼の場所を奪わない範囲でだけ出す */
-  .brand-meta { display: none; }
   /* 検索中はロゴを畳んで、入力欄に残り幅を全部渡す */
   body.searching .brand { padding-right: .3rem; padding-left: .3rem; }
   body.searching .brand .label { display: none; }
@@ -592,7 +582,6 @@ body.page-controls-hidden #page-actions {
             <span class="label">HTML共有くん</span>
           </button>
           <div class="topbar-actions">
-            <span class="brand-meta" id="brand-meta"></span>
             <div class="search" id="search">
               <button id="search-toggle" type="button" aria-label="検索する" aria-expanded="false">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.4" fill="none"/><path d="m20 20-4.2-4.2"/></svg>
@@ -664,7 +653,7 @@ body.page-controls-hidden #page-actions {
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const frame = $('frame'), home = $('home'), tilesEl = $('tiles'), brandMeta = $('brand-meta');
+  const frame = $('frame'), home = $('home'), tilesEl = $('tiles');
   const searchBox = $('search'), searchToggle = $('search-toggle'), searchClear = $('search-clear');
   const refresh = $('refresh'), pageRefresh = $('page-refresh');
   const pageMore = $('page-more'), pageMenu = $('page-menu'), pageSharePanel = $('page-share-panel');
@@ -951,7 +940,6 @@ body.page-controls-hidden #page-actions {
     }
     updateTrashToggle();
     renderHome();
-    setStamp();
   }
 
   function toggleStar(page) {
@@ -1387,12 +1375,6 @@ body.page-controls-hidden #page-actions {
     for (const group of groups) appendDateGroup(group.label, group.streams);
   }
 
-  function setStamp() {
-    if (!meta) return;
-    brandMeta.textContent = `${shortTime(meta.generatedAt)} 更新`;
-    brandMeta.title = `最終更新 ${fmtDateTime(meta.generatedAt)}`;
-  }
-
   function loadFrame(url) {
     const view = frame.contentWindow;
     if (!view) {
@@ -1445,7 +1427,6 @@ body.page-controls-hidden #page-actions {
       // ブックマークやURL直打ちで開いた場合もここを通るので、未読解除はまとめてここで行う
       markRead(current);
     }
-    setStamp();
   }
 
   async function buildTimedShareUrl(page, mode, days) {
@@ -1684,7 +1665,7 @@ body.page-controls-hidden #page-actions {
       refreshInboxDot();
     })
     .catch((err) => {
-      brandMeta.textContent = '一覧の読み込みに失敗しました';
+      tilesEl.textContent = '一覧の読み込みに失敗しました';
       console.error(err);
     });
 })();

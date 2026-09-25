@@ -104,14 +104,11 @@ test('lets the owner add and remove in-progress items from the theme card pin', 
   assert.doesNotMatch(dashboard, /\.\.\.remoteShelf, \.\.\.shelfDone/, '進行中の印を和集合で合わせない');
 });
 
-test('shows only the update time before the toolbar icons', () => {
+test('does not show a global update time in the toolbar', () => {
   const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
-  assert.match(dashboard, /<div class="topbar-actions">\s*<span class="brand-meta" id="brand-meta"><\/span>/, '更新時刻は右のアイコン群の直前');
-  assert.match(dashboard, /brandMeta\.textContent = `\$\{shortTime\(meta\.generatedAt\)\} 更新`;/);
-  assert.match(dashboard, /brandMeta\.title = `最終更新 \$\{fmtDateTime\(meta\.generatedAt\)\}`;/);
+  // 最新の更新時刻は一覧の先頭行に出ているので、右上には置かない
+  assert.doesNotMatch(dashboard, /brand-meta|brandMeta|setStamp/);
   assert.doesNotMatch(dashboard, /ページ ／ \$\{fmtDateTime/, 'ページ件数は出さない');
-  assert.match(dashboard, /body\.searching \.brand-meta \{ display: none; \}/);
-  assert.match(dashboard, /\.brand-meta \{[^}]*border-right: 1px solid/, '右に細い区切り線');
 });
 
 test('loads iframe pages without adding child-frame history entries', () => {
