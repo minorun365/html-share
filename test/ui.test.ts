@@ -73,7 +73,10 @@ test('lets the owner add and remove in-progress chips from the dashboard', () =>
   const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
   // 編集モード：鉛筆のゴーストチップ → 全チップに ✕、並びの最後に「＋ 追加」と「完了」
   assert.match(dashboard, /edit\.className = `chip ghost edit\$\{chipEditing \? ' on' : ''\}`/, '鉛筆はゴーストのチップ');
-  assert.match(dashboard, /chipEditing\s*\? '完了'/, '編集中は「完了」で抜ける');
+  assert.match(dashboard, /chipEditing\s*\? '<svg[^']*<\/svg>完了'/, '編集中はチェックマーク付きの「完了」で抜ける');
+  // 「完了」と開いた「＋ 追加」は白塗りにしない（選択中のチップと見分けるため）
+  assert.match(dashboard, /\.chip\.edit\.on \{[^}]*background: transparent;[^}]*color: #fff;[^}]*font-weight: 700;/, '「完了」は塗りも枠も無い文字ボタン');
+  assert.match(dashboard, /\.chip\.ghost:not\(\.edit\)\.on \{[^}]*background: rgba\(255, 255, 255, \.22\);[^}]*inset 0 0 0 1px rgba\(255, 255, 255, \.7\)/, '開いた「＋ 追加」は淡い面と明るい枠');
   assert.match(dashboard, /if \(chipEditing\) \{[\s\S]{0,200}add\.textContent = '＋ 追加';/, '編集中だけ「＋ 追加」を出す');
   assert.match(dashboard, /onClick: \(\) => window\.open\(item\.url, '_blank', 'noopener,noreferrer'\),\s*onDone: \(\) => doneShelfItem\(item\)/, 'リンクのチップも編集中は ✕ で外せる');
   assert.match(dashboard, /bar\.classList\.toggle\('editing', chipEditing\)/);
