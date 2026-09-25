@@ -316,34 +316,43 @@ body.searching.has-query #search-clear { display: flex; }
 }
 .more:hover { background: #f4f7fc; }
 
-/* ── 進行中の棚。スターの下に1枚だけ置く。1行＝1つのまだ終わっていない仕事 ── */
-.shelf {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(23rem, 100%), 1fr));
-  column-gap: 1.25rem; padding: .35rem 0;
-  border: 1px solid rgba(14, 13, 106, .06); border-radius: 1rem; background: var(--panel);
-  box-shadow: 0 1px 2px rgba(26, 26, 31, .03), 0 10px 26px rgba(14, 13, 106, .055);
+/* ── 絞り込みチップ。ヘッダーの帯の2段目に、すべて／スター／進行中の仕事を横に並べる ──
+   一覧のカードと同じ見た目にすると「読むもの」と「切り替えるもの」の区別が消えるので、
+   一覧の中ではなくヘッダーへ置く。スクロールしてもヘッダーごと残る */
+.chips {
+  display: flex; flex-wrap: wrap; gap: .4rem;
+  padding: 0 max(var(--gutter), env(safe-area-inset-right)) .7rem max(var(--gutter), env(safe-area-inset-left));
 }
-.shelf .row { padding-right: 2.6rem; }
-.shelf .row .t { display: flex; flex-direction: column; color: var(--ink); font-weight: 600; }
-.shelf .row .t > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.shelf .sub-line {
-  display: block; font-size: .7rem; font-weight: 400; color: var(--mut);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.chips:empty { display: none; }
+body.searching .chips { display: none; }
+.chip {
+  flex: none; height: 2rem; padding: 0 .8rem;
+  display: inline-flex; align-items: center; gap: .4rem;
+  border: 1px solid rgba(255, 255, 255, .28); border-radius: 999px;
+  background: rgba(255, 255, 255, .12); color: #fff;
+  font: inherit; font-size: .78rem; font-weight: 650; white-space: nowrap;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background .16s ease, border-color .16s ease, color .16s ease;
 }
-.shelf .due {
-  flex: none; font-size: .7rem; font-weight: 700; color: var(--mut);
-  font-variant-numeric: tabular-nums; white-space: nowrap;
+.chip:hover { background: rgba(255, 255, 255, .22); border-color: rgba(255, 255, 255, .5); }
+.chip .n { font-size: .68rem; font-weight: 600; opacity: .78; font-variant-numeric: tabular-nums; }
+.chip .n.soon { color: #ffe08a; opacity: 1; }
+.chip.on { background: #fff; border-color: #fff; color: var(--blue-deep); }
+.chip.on .n { color: var(--mut); opacity: 1; }
+.chip.on .n.soon { color: var(--gold-deep); }
+.chip .x {
+  margin: 0 -.45rem 0 .05rem; width: 1.35rem; height: 1.35rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; color: var(--mut); font-size: .8rem; line-height: 1;
 }
-.shelf .due.soon { color: var(--gold-deep); }
-.row-wrap > .shelf-done {
-  position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
-  width: 1.9rem; height: 1.9rem; border: 0; border-radius: 50%;
-  background: transparent; color: var(--mut); font-size: .95rem; cursor: pointer;
+.chip .x:hover { background: var(--blue-soft); color: var(--blue); }
+.chip.link .n::after { content: " ↗"; }
+/* 絞り込み中にだけ出す1行。何で絞っているか・締切・メモを本文の先頭で示す */
+.filter-note {
+  margin: 1.1rem var(--gutter) -.4rem; font-size: .8rem; color: var(--sub);
+  overflow-wrap: anywhere;
 }
-.shelf .row-wrap.picked .row { background: var(--blue-soft); }
-.shelf .row-wrap.picked .row .t > span:first-child { color: var(--blue-deep); }
-.shelf .row-wrap.picked::before, .shelf .row-wrap.picked + .row-wrap::before { background: transparent; }
-.row-wrap > .shelf-done:hover { background: var(--blue-soft); color: var(--blue); }
+.filter-note b { color: var(--blue-deep); }
 
 .empty { padding: 4rem 0; text-align: center; color: var(--mut); font-size: .85rem; }
 
@@ -446,6 +455,9 @@ body.page-controls-hidden #page-actions {
 
 /* ── スマホ ───────────────────────────────────── */
 @media (max-width: 46rem) {
+  /* スマホはチップを折り返さず横へ流す。ヘッダーが何段にも伸びると本文が押し下がる */
+  .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .chips::-webkit-scrollbar { display: none; }
   html,
   body {
     min-height: 100%;
@@ -575,7 +587,9 @@ body.page-controls-hidden #page-actions {
             </button>
           </div>
         </div>
+        <nav class="chips" id="chips" aria-label="一覧の絞り込み"></nav>
       </header>
+      <p class="filter-note" id="filter-note" hidden></p>
       <div class="home-content">
         <div id="tiles"></div>
         <div class="trash-bar">
@@ -694,7 +708,6 @@ body.page-controls-hidden #page-actions {
   const pageStreamLabel = (page) => page.streamLabel ?? pageStream(page);
   const streamStarId = (streamKey) => `${STREAM_STAR_PREFIX}${streamKey}`;
   const isStreamStarValue = (value) => value.startsWith(STREAM_STAR_PREFIX);
-  const isStreamStarred = (stream) => starred.has(streamStarId(stream.key));
 
   function isValidStarValue(value, validSources, validStreams) {
     if (validSources.has(value)) return true;
@@ -1116,18 +1129,6 @@ body.page-controls-hidden #page-actions {
     return { text: `${rel}・${date}`, soon: diff <= 3 };
   }
 
-  /** メモ・ページ数（またはリンク）・最終更新。7日以上動きが無ければ「◯日動きなし」 */
-  function shelfSubLine(item) {
-    const parts = [];
-    if (item.note) parts.push(item.note);
-    parts.push(item.url ? 'ページなし・リンクを開く' : `${item.count}ページ`);
-    if (item.last) {
-      const idle = Math.floor((Date.now() - Date.parse(item.last)) / 86400e3);
-      parts.push(idle >= 7 ? `${idle}日動きなし` : `更新 ${shortTime(item.last)}`);
-    }
-    return parts.join('・');
-  }
-
   function doneShelfItem(item) {
     shelfDone.add(item.id);
     if (shelfFilter === item.stream) shelfFilter = null;
@@ -1135,89 +1136,112 @@ body.page-controls-hidden #page-actions {
     renderHome();
   }
 
-  function appendShelf() {
-    const items = (meta?.shelf ?? []).filter((item) => !shelfDone.has(item.id));
-    if (items.length === 0) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'dgroup';
-    const head = document.createElement('div');
-    head.className = 'dhead';
-    const title = document.createElement('span');
-    title.textContent = '進行中';
-    const count = document.createElement('span');
-    count.className = 'dcount';
-    count.textContent = `${items.length}件`;
-    head.append(title, count);
-    const body = document.createElement('div');
-    body.className = 'shelf';
-    for (const item of items) {
-      const row = document.createElement('div');
-      row.className = 'row-wrap';
-      const link = document.createElement('a');
-      link.className = 'row';
-      const text = document.createElement('div');
-      text.className = 't';
-      const name = document.createElement('span');
-      name.textContent = item.title;
-      const sub = document.createElement('span');
-      sub.className = 'sub-line';
-      sub.textContent = shelfSubLine(item);
-      text.append(name, sub);
-      link.append(text);
-      const due = shelfDueLabel(item.due);
-      if (due.text) {
-        const chip = document.createElement('span');
-        chip.className = `due${due.soon ? ' soon' : ''}`;
-        chip.textContent = due.text;
-        link.append(chip);
-      }
-      if (item.url) {
-        link.href = item.url;
-        link.target = '_blank';
-        link.rel = 'noopener noreferrer';
-      } else {
-        if (!allPages.some((candidate) => candidate.slug === item.slug)) continue;
-        // テーマの行は開かず、下の一覧をそのテーマだけに絞る。もう一度押すと解除する
-        const on = shelfFilter === item.stream;
-        row.classList.toggle('picked', on);
-        link.setAttribute('role', 'button');
-        link.setAttribute('aria-pressed', String(on));
-        link.tabIndex = 0;
-        const toggle = () => {
-          shelfFilter = on ? null : item.stream;
-          renderHome();
-        };
-        link.addEventListener('click', (event) => { event.preventDefault(); toggle(); });
-        link.addEventListener('keydown', (event) => {
-          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
-        });
-      }
-      const done = document.createElement('button');
-      done.type = 'button';
-      done.className = 'shelf-done';
-      done.textContent = '✓';
-      done.title = '棚から下ろす（ページは消えません）';
-      done.setAttribute('aria-label', `${item.title}を棚から下ろす`);
-      done.addEventListener('click', () => doneShelfItem(item));
-      row.append(link, done);
-      body.append(row);
-    }
-    if (body.childElementCount === 0) return;
-    count.textContent = `${body.childElementCount}件`;
-    wrap.append(head, body);
-    tilesEl.append(wrap);
+  const STAR_FILTER = '@star';
+  // テーマの項目は、そのテーマのページが実在するものだけを出す
+  const liveShelf = () => (meta?.shelf ?? []).filter((item) => !shelfDone.has(item.id)
+    && (item.url || allPages.some((candidate) => candidate.slug === item.slug)));
+  // ページのスターと、テーマ見出し（カード）のスターの両方を「スター」の絞り込みに含める
+  const pageIsStarred = (page) => isStarred(page) || starred.has(streamStarId(pageStream(page)));
+
+  /** 締切をチップ用に短くする（「今日」「明日」「5日」）。3日以内は強調 */
+  function chipDue(due) {
+    if (!due) return null;
+    const [y, m, d] = due.split('-').map(Number);
+    const now = new Date(Date.now() + 9 * 3600e3);
+    const diff = Math.round((Date.UTC(y, m - 1, d)
+      - Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())) / 86400e3);
+    const text = diff < 0 ? '昨日まで' : diff === 0 ? '今日' : diff === 1 ? '明日' : `${diff}日`;
+    return { text, soon: diff <= 3 };
   }
 
-  // ── トップ: スター付き → 進行中の棚 → 日付の区切り（中はテーマ単位の塊）
+  function chip(label, { on = false, count = null, due = null, onClick, onDone = null, link = false }) {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = `chip${on ? ' on' : ''}${link ? ' link' : ''}`;
+    el.setAttribute('aria-pressed', String(on));
+    const name = document.createElement('span');
+    name.textContent = label;
+    el.append(name);
+    const sub = due ?? (count === null ? null : { text: String(count), soon: false });
+    if (sub || link) {
+      const n = document.createElement('span');
+      n.className = `n${sub?.soon ? ' soon' : ''}`;
+      n.textContent = sub?.text ?? '';
+      el.append(n);
+    }
+    el.addEventListener('click', onClick);
+    if (on && onDone) {
+      const x = document.createElement('span');
+      x.className = 'x';
+      x.setAttribute('role', 'button');
+      x.setAttribute('aria-label', `${label}を棚から下ろす`);
+      x.title = '棚から下ろす（ページは消えません）';
+      x.textContent = '✕';
+      x.addEventListener('click', (event) => { event.stopPropagation(); onDone(); });
+      el.append(x);
+    }
+    return el;
+  }
+
+  /** ヘッダーの絞り込みチップ。すべて → スター → 棚の項目（締切の近い順） */
+  function renderChips() {
+    const bar = $('chips');
+    bar.replaceChildren();
+    // 削除済みの表示と検索中は絞り込みを使わない
+    if (showingTrash || filterText.trim()) return;
+    const select = (key) => () => { shelfFilter = shelfFilter === key ? null : key; renderHome(); };
+    bar.append(chip('すべて', { on: shelfFilter === null, onClick: () => { shelfFilter = null; renderHome(); } }));
+    const starCount = pages.filter(pageIsStarred).length;
+    if (starCount > 0) {
+      bar.append(chip('★ スター', { on: shelfFilter === STAR_FILTER, count: starCount, onClick: select(STAR_FILTER) }));
+    }
+    for (const item of liveShelf()) {
+      if (item.url) {
+        bar.append(chip(item.title, {
+          due: chipDue(item.due), link: true,
+          onClick: () => window.open(item.url, '_blank', 'noopener,noreferrer'),
+        }));
+        continue;
+      }
+      bar.append(chip(item.title, {
+        on: shelfFilter === item.stream,
+        due: chipDue(item.due) ?? { text: String(item.count), soon: false },
+        onClick: select(item.stream),
+        onDone: () => doneShelfItem(item),
+      }));
+    }
+  }
+
+  /** 絞り込み中の1行。何で絞っているかと、締切・メモ・件数を本文の先頭に出す */
+  function renderFilterNote(count) {
+    const note = $('filter-note');
+    if (!shelfFilter || showingTrash) { note.hidden = true; return; }
+    const item = liveShelf().find((candidate) => !candidate.url && candidate.stream === shelfFilter);
+    note.hidden = false;
+    note.replaceChildren();
+    const b = document.createElement('b');
+    b.textContent = shelfFilter === STAR_FILTER ? '★ スター' : (item?.title ?? '');
+    const parts = [];
+    if (item?.due) parts.push(shelfDueLabel(item.due).text);
+    if (item?.note) parts.push(item.note);
+    parts.push(`${count}ページ`);
+    note.append(b, document.createTextNode(`　${parts.join('・')}`));
+  }
+
+  // ── トップ: 日付の区切り（中はテーマ単位の塊）。スターと進行中はヘッダーのチップで絞る
   function renderHome() {
     tilesEl.replaceChildren();
-    // 棚で選んだテーマは、下ろされたり検索を始めたり棚から消えたりしたら解除する
-    const shelfStreams = new Set((meta?.shelf ?? [])
-      .filter((item) => item.stream && !shelfDone.has(item.id)).map((item) => item.stream));
+    // チップで選んだ絞り込みは、下ろされたり検索を始めたり棚から消えたりしたら解除する
+    const shelfStreams = new Set(liveShelf().filter((item) => item.stream).map((item) => item.stream));
+    shelfStreams.add(STAR_FILTER);
     if (shelfFilter && (showingTrash || filterText.trim() || !shelfStreams.has(shelfFilter))) shelfFilter = null;
-    const items = shelfFilter
-      ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
-      : visiblePages();
+    const items = shelfFilter === STAR_FILTER
+      ? visiblePages().filter(pageIsStarred)
+      : shelfFilter
+        ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
+        : visiblePages();
+    renderChips();
+    renderFilterNote(items.length);
 
     if (items.length === 0) {
       const none = document.createElement('div');
@@ -1253,20 +1277,8 @@ body.page-controls-hidden #page-actions {
       return;
     }
 
-    const pinnedStreams = [];
-    const rest = [];
-    for (const stream of groupByStream(items)) {
-      if (isStreamStarred(stream)) {
-        pinnedStreams.push(stream);
-        continue;
-      }
-      const pinnedPages = stream.pages.filter(isStarred);
-      if (pinnedPages.length > 0) pinnedStreams.push({ ...stream, pages: pinnedPages });
-      rest.push(...stream.pages.filter((page) => !isStarred(page)));
-    }
-    if (pinnedStreams.length > 0) appendDateGroup('スター', pinnedStreams);
-    // 検索中は探している1件を見せたいので、棚は出さない
-    if (!filterText.trim()) appendShelf();
+    // スターと進行中はヘッダーのチップへ移した。一覧は日付の区切りだけにする
+    const rest = items;
 
     // テーマは最終更新日で区切りが決まる。今日1件でも触ったテーマは、
     // 過去の版を引き連れて「今日」へ上がってくる
@@ -1400,6 +1412,11 @@ body.page-controls-hidden #page-actions {
     searchToggle.setAttribute('aria-label', open ? '検索を閉じる' : '検索する');
     // 閉じている間は Tab の巡回から外し、虫めがね自体を押させる
     searchInput.tabIndex = open ? 0 : -1;
+    // 検索中はチップ段を隠すので、チップの絞り込みも解除して全ページから探す
+    if (open && shelfFilter !== null) {
+      shelfFilter = null;
+      renderHome();
+    }
     if (open) searchInput.focus();
   }
   function applyFilter(value) {
