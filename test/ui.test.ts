@@ -43,6 +43,12 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /const SHELF_DONE_KEY = 'mb_shelf_done'/);
   assert.match(dashboard, /shelfDone: \[\.\.\.shelfDone\]/, '✓で下ろした印を本人設定として同期する');
   assert.match(dashboard, /appendDateGroup\('スター', pinnedStreams\);\s*\/\/[^\n]*\n\s*if \(!filterText\.trim\(\)\) appendShelf\(\);/, '棚はスターの直後に置き、検索中は出さない');
+  assert.match(dashboard, /let shelfFilter = null;/);
+  assert.doesNotMatch(dashboard.slice(dashboard.indexOf('function appendShelf'), dashboard.indexOf('function renderHome')), /L\.bindOpen/, '棚のテーマ行はページを開かない');
+  assert.match(dashboard, /shelfFilter = on \? null : item\.stream;/, '棚のテーマ行は押すたびに絞り込みを切り替える');
+  assert.match(dashboard, /aria-pressed/);
+  assert.match(dashboard, /visiblePages\(\)\.filter\(\(page\) => pageStream\(page\) === shelfFilter\)/, '一覧を選んだテーマに絞る');
+  assert.match(dashboard, /filterText\.trim\(\) === '' && shelfFilter === null && \(hidden > 0 \|\| expanded\)/, '絞り込み中は「他N件」を出さない');
   assert.match(dashboard, /manifest\.internalSharing/);
   assert.match(dashboard, /manifest\.maximumShareDays/);
   assert.match(shell, /function configureShareOptions/);

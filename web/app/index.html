@@ -340,6 +340,9 @@ body.searching.has-query #search-clear { display: flex; }
   width: 1.9rem; height: 1.9rem; border: 0; border-radius: 50%;
   background: transparent; color: var(--mut); font-size: .95rem; cursor: pointer;
 }
+.shelf .row-wrap.picked .row { background: var(--blue-soft); }
+.shelf .row-wrap.picked .row .t > span:first-child { color: var(--blue-deep); }
+.shelf .row-wrap.picked::before, .shelf .row-wrap.picked + .row-wrap::before { background: transparent; }
 .row-wrap > .shelf-done:hover { background: var(--blue-soft); color: var(--blue); }
 
 .empty { padding: 4rem 0; text-align: center; color: var(--mut); font-size: .85rem; }
@@ -641,6 +644,8 @@ body.page-controls-hidden #page-actions {
   let hiddenSources = new Set();
   // 進行中の棚から ✓ で下ろした項目の id。棚の台帳（設定ファイル）は書き換えず、本人設定として同期する
   let shelfDone = new Set();
+  // 棚の行を押して絞り込み中のテーマキー。もう一度押すと解除する
+  let shelfFilter = null;
   // { ページの source: 開いたときの更新日時 }。更新日時ごと持つので、再更新で自動的に未読へ戻る
   let readMarks = {};
   let knowsReadMarks = false;
@@ -1040,12 +1045,12 @@ body.page-controls-hidden #page-actions {
     section.append(head);
 
     // 絞り込み中は「他N件」で隠さない。探している1件が畳まれた中にいると見つけられない
-    const expanded = expandedStreams.has(stream.key) || filterText.trim() !== '';
+    const expanded = expandedStreams.has(stream.key) || filterText.trim() !== '' || shelfFilter !== null;
     const shown = expanded ? stream.pages : stream.pages.slice(0, STREAM_PREVIEW);
     for (const page of shown) section.append(pageRow(page, { indented: true }));
 
     const hidden = stream.pages.length - shown.length;
-    if (filterText.trim() === '' && (hidden > 0 || expanded)) {
+    if (filterText.trim() === '' && shelfFilter === null && (hidden > 0 || expanded)) {
       const more = document.createElement('button');
       more.className = 'more';
       more.type = 'button';
@@ -1125,6 +1130,7 @@ body.page-controls-hidden #page-actions {
 
   function doneShelfItem(item) {
     shelfDone.add(item.id);
+    if (shelfFilter === item.stream) shelfFilter = null;
     queuePreferenceSave();
     renderHome();
   }
@@ -1170,9 +1176,21 @@ body.page-controls-hidden #page-actions {
         link.target = '_blank';
         link.rel = 'noopener noreferrer';
       } else {
-        const page = allPages.find((candidate) => candidate.slug === item.slug);
-        if (!page) continue;
-        L.bindOpen(link, page, openPage);
+        if (!allPages.some((candidate) => candidate.slug === item.slug)) continue;
+        // テーマの行は開かず、下の一覧をそのテーマだけに絞る。もう一度押すと解除する
+        const on = shelfFilter === item.stream;
+        row.classList.toggle('picked', on);
+        link.setAttribute('role', 'button');
+        link.setAttribute('aria-pressed', String(on));
+        link.tabIndex = 0;
+        const toggle = () => {
+          shelfFilter = on ? null : item.stream;
+          renderHome();
+        };
+        link.addEventListener('click', (event) => { event.preventDefault(); toggle(); });
+        link.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); toggle(); }
+        });
       }
       const done = document.createElement('button');
       done.type = 'button';
@@ -1193,7 +1211,13 @@ body.page-controls-hidden #page-actions {
   // ── トップ: スター付き → 進行中の棚 → 日付の区切り（中はテーマ単位の塊）
   function renderHome() {
     tilesEl.replaceChildren();
-    const items = visiblePages();
+    // 棚で選んだテーマは、下ろされたり検索を始めたり棚から消えたりしたら解除する
+    const shelfStreams = new Set((meta?.shelf ?? [])
+      .filter((item) => item.stream && !shelfDone.has(item.id)).map((item) => item.stream));
+    if (shelfFilter && (showingTrash || filterText.trim() || !shelfStreams.has(shelfFilter))) shelfFilter = null;
+    const items = shelfFilter
+      ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
+      : visiblePages();
 
     if (items.length === 0) {
       const none = document.createElement('div');
