@@ -286,12 +286,22 @@ body.searching.has-query #search-clear { display: flex; }
   width: 1.9rem; height: 1.9rem; font-size: .95rem;
 }
 .row-wrap > .star:active { transform: translateY(-50%) scale(.82); }
+/* 1件だけのテーマの行は ☆ の左にピンを置くので、タイトルの右をその分だけ空ける */
+.row-wrap > .shelf-pin {
+  position: absolute; top: 50%; right: 2.35rem; transform: translateY(-50%);
+  width: 1.9rem; height: 1.9rem; margin: 0;
+}
+.row-wrap > .shelf-pin:active { transform: translateY(-50%) scale(.82); }
+.row-wrap:has(> .shelf-pin) .row { padding-right: 4.4rem; }
 /* 読み終えた行に空の☆が並ぶと視覚ノイズになるので、マウスのある環境では触れたときだけ出す。
    指で操作する環境ではこの規則が効かず、従来どおり常に見える */
 @media (hover: hover) {
-  .row-wrap > .star:not(.on) { opacity: 0; transition: opacity .12s ease; }
+  .row-wrap > .star:not(.on),
+  .row-wrap > .shelf-pin:not(.on) { opacity: 0; transition: opacity .12s ease; }
   .row-wrap:hover > .star:not(.on),
-  .row-wrap > .star:focus-visible { opacity: 1; }
+  .row-wrap:hover > .shelf-pin:not(.on),
+  .row-wrap > .star:focus-visible,
+  .row-wrap > .shelf-pin:focus-visible { opacity: 1; }
 }
 .row-wrap > .restore {
   position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
@@ -1078,7 +1088,10 @@ body.page-controls-hidden #page-actions {
     if (stream.pages.length === 1) {
       const solo = document.createElement('section');
       solo.className = 'solo';
-      solo.append(pageRow(stream.pages[0], { indented: false }));
+      // 見出しが無いぶん、進行中へ入れるピンは行の ☆ の左に置く（入れる単位はテーマのまま）
+      const row = pageRow(stream.pages[0], { indented: false });
+      row.querySelector('.star')?.before(shelfPinButton(stream));
+      solo.append(row);
       parent.append(solo);
       return;
     }
