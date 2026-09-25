@@ -16,7 +16,7 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /未読に戻す/);
   assert.match(dashboard, /groupByStream/);
   assert.match(dashboard, /const STREAM_STAR_PREFIX = '@stream:'/, 'カードスターを個別ページと区別する');
-  assert.match(dashboard, /row\.querySelector\('\.star'\)\?\.before\(shelfPinButton\(stream\)\)/, '1件だけのテーマの行にもピンを置く');
+  assert.match(dashboard, /row\.querySelector\('\.row time'\)\?\.before\(shelfPinButton\(stream\)\)/, '1件だけのテーマの行にもピンを置く（時刻と☆の列は他の行と揃える）');
   assert.match(dashboard, /head\.append\(count, shelfPinButton\(stream\), streamStarButton\(stream\)\)/, 'カード見出しに進行中へ入れるボタンとスターを置く');
   assert.doesNotMatch(dashboard, /className = 'tlast'/, 'カード見出しに更新時刻を置かない（各行にあるため）');
   assert.match(dashboard, /\.tcount \{[^}]*margin-left: auto;[^}]*white-space: nowrap;/, '件数は折り返さず右へ寄せる');

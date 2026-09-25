@@ -286,22 +286,17 @@ body.searching.has-query #search-clear { display: flex; }
   width: 1.9rem; height: 1.9rem; font-size: .95rem;
 }
 .row-wrap > .star:active { transform: translateY(-50%) scale(.82); }
-/* 1件だけのテーマの行は ☆ の左にピンを置くので、タイトルの右をその分だけ空ける */
-.row-wrap > .shelf-pin {
-  position: absolute; top: 50%; right: 2.35rem; transform: translateY(-50%);
-  width: 1.9rem; height: 1.9rem; margin: 0;
-}
-.row-wrap > .shelf-pin:active { transform: translateY(-50%) scale(.82); }
-.row-wrap:has(> .shelf-pin) .row { padding-right: 4.4rem; }
+/* 1件だけのテーマの行は、更新時刻の左にピンを置く。時刻と ☆ の位置は他の行と同じまま */
+.row .shelf-pin { width: 1.7rem; height: 1.7rem; margin: -.3rem -.2rem; }
 /* 読み終えた行に空の☆が並ぶと視覚ノイズになるので、マウスのある環境では触れたときだけ出す。
    指で操作する環境ではこの規則が効かず、従来どおり常に見える */
 @media (hover: hover) {
   .row-wrap > .star:not(.on),
-  .row-wrap > .shelf-pin:not(.on) { opacity: 0; transition: opacity .12s ease; }
+  .row .shelf-pin:not(.on) { opacity: 0; transition: opacity .12s ease; }
   .row-wrap:hover > .star:not(.on),
-  .row-wrap:hover > .shelf-pin:not(.on),
+  .row-wrap:hover .shelf-pin:not(.on),
   .row-wrap > .star:focus-visible,
-  .row-wrap > .shelf-pin:focus-visible { opacity: 1; }
+  .row .shelf-pin:focus-visible { opacity: 1; }
 }
 .row-wrap > .restore {
   position: absolute; top: 50%; right: .5rem; transform: translateY(-50%);
@@ -1076,6 +1071,8 @@ body.page-controls-hidden #page-actions {
     b.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 17v5"/>'
       + '<path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" class="head"/></svg>';
     b.addEventListener('click', (event) => {
+      // 1件だけの行ではリンクの中に置くので、ページを開く動作も止める
+      event.preventDefault();
       event.stopPropagation();
       if (item) doneShelfItem(item);
       else addShelfStream(stream.key);
@@ -1088,9 +1085,10 @@ body.page-controls-hidden #page-actions {
     if (stream.pages.length === 1) {
       const solo = document.createElement('section');
       solo.className = 'solo';
-      // 見出しが無いぶん、進行中へ入れるピンは行の ☆ の左に置く（入れる単位はテーマのまま）
+      // 見出しが無いぶん、進行中へ入れるピンは更新時刻の左に置く（入れる単位はテーマのまま）。
+      // 時刻と ☆ の列を他のカードの行と揃えるため、行の右端には足さない
       const row = pageRow(stream.pages[0], { indented: false });
-      row.querySelector('.star')?.before(shelfPinButton(stream));
+      row.querySelector('.row time')?.before(shelfPinButton(stream));
       solo.append(row);
       parent.append(solo);
       return;
