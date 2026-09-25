@@ -55,14 +55,14 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /\/api\/owner\/reviews/);
   assert.match(dashboard, /function configureShareOptions/);
   assert.doesNotMatch(dashboard, /function appendShelf/, '進行中の段は一覧に出さない');
-  assert.match(dashboard, /<nav class="chips" id="chips" aria-label="一覧の絞り込み"><\/nav>\s*<div class="chip-picker" id="chip-picker" hidden><\/div>\s*<\/header>/, '絞り込みチップはヘッダーの2段目、追加の候補はその下に置く');
+  assert.match(dashboard, /<nav class="chips" id="chips" aria-label="一覧の絞り込み"><\/nav>\s*<\/header>/, '絞り込みチップはヘッダーの2段目に置く');
   assert.match(dashboard, /const SHELF_DONE_KEY = 'mb_shelf_done'/);
   assert.match(dashboard, /shelfDone: \[\.\.\.shelfDone\]/, '✕で下ろした印を本人設定として同期する');
   assert.match(dashboard, /let shelfFilter = null;/);
   assert.match(dashboard, /chip\('すべて', \{ on: shelfFilter === null/, '「すべて」は絞り込みなしで選択状態');
   assert.match(dashboard, /const select = \(key\) => \(\) => \{ shelfFilter = shelfFilter === key \? null : key; renderHome\(\); \};/, 'チップは押すたびに絞り込みを切り替える');
   assert.match(dashboard, /onClick: select\(item\.stream\),\s*onDone: \(\) => doneShelfItem\(item\)/, 'テーマのチップで絞り込み、選択中の✕で棚から下ろす');
-  assert.match(dashboard, /if \(onDone && \(on \|\| chipEditing\)\)/, '✕は選択中のチップと、編集中の全チップに出す');
+  assert.match(dashboard, /if \(onDone && on\) \{/, '✕は選択中のチップにだけ出す');
   assert.match(dashboard, /window\.open\(item\.url, '_blank', 'noopener,noreferrer'\)/, 'リンクのチップは新しいタブで開く');
   assert.match(dashboard, /\.chip\.link \.n::after \{ content: " ↗"; \}/);
   assert.match(dashboard, /const text = diff < 0 \? '昨日まで' : diff === 0 \? '今日' : diff === 1 \? '明日' : `\$\{diff\}日`;/, 'チップの締切は短い表記');
@@ -81,26 +81,19 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(shell, /manifest\.maximumShareDays/);
 });
 
-test('lets the owner add and remove in-progress chips from the dashboard', () => {
+test('lets the owner add and remove in-progress items from the theme card pin', () => {
   const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
-  // 編集モード：鉛筆のゴーストチップ → 全チップに ✕、並びの最後に「＋ 追加」と「完了」
-  assert.match(dashboard, /edit\.className = `chip ghost edit\$\{chipEditing \? ' on' : ''\}`/, '鉛筆はゴーストのチップ');
-  assert.match(dashboard, /chipEditing\s*\? '<svg[^']*<\/svg>完了'/, '編集中はチェックマーク付きの「完了」で抜ける');
-  // 「完了」と開いた「＋ 追加」は白塗りにしない（選択中のチップと見分けるため）
-  assert.match(dashboard, /\.chip\.edit\.on \{[^}]*background: transparent;[^}]*color: #fff;[^}]*font-weight: 700;/, '「完了」は塗りも枠も無い文字ボタン');
-  assert.match(dashboard, /\.chip\.ghost:not\(\.edit\)\.on \{[^}]*background: rgba\(255, 255, 255, \.22\);[^}]*inset 0 0 0 1px rgba\(255, 255, 255, \.7\)/, '開いた「＋ 追加」は淡い面と明るい枠');
-  assert.match(dashboard, /if \(chipEditing\) \{[\s\S]{0,200}add\.textContent = '＋ 追加';/, '編集中だけ「＋ 追加」を出す');
-  assert.match(dashboard, /onClick: \(\) => window\.open\(item\.url, '_blank', 'noopener,noreferrer'\),\s*onDone: \(\) => doneShelfItem\(item\)/, 'リンクのチップも編集中は ✕ で外せる');
-  assert.match(dashboard, /bar\.classList\.toggle\('editing', chipEditing\)/);
+  // チップ列の鉛筆・編集モード・「＋ 追加」と候補パネルは廃止。足し引きはカード見出しの押しピンに一本化
+  assert.doesNotMatch(dashboard, /chipEditing|chipPicking/, '編集モードの状態を持たない');
+  assert.doesNotMatch(dashboard, /chip-picker|picker-item|renderChipPicker/, '追加の候補パネルを持たない');
+  assert.doesNotMatch(dashboard, /\.chip\.edit|chip ghost|＋ 追加'/, '鉛筆と「＋ 追加」のチップを持たない');
+  assert.doesNotMatch(dashboard, /\.chips\.editing/, '編集中の折り返し指定を持たない');
+  assert.match(dashboard, /else addShelfStream\(stream\.key\);/, 'カード見出しの押しピンで進行中へ足す');
+  assert.match(dashboard, /onClick: \(\) => window\.open\(item\.url, '_blank', 'noopener,noreferrer'\),\s*onDone: \(\) => doneShelfItem\(item\)/);
   // ✕：台帳の項目は shelfDone へ、自分で足したテーマは shelfAdded から消す
   assert.match(dashboard, /if \(item\.added\) shelfAdded = shelfAdded\.filter\(\(key\) => key !== item\.stream\);\s*else shelfDone\.add\(item\.id\);/);
   // 追加：台帳にあって下ろしていたら戻し、無ければ shelfAdded に足す
   assert.match(dashboard, /if \(ledger && shelfDone\.has\(ledger\.id\)\) shelfDone\.delete\(ledger\.id\);\s*else if \(!ledger && !shelfAdded\.includes\(streamKey\)\) shelfAdded\.push\(streamKey\);/);
-  // 候補は進行中に無いテーマを最近動いた順に最大24件
-  assert.match(dashboard, /\.filter\(\(summary\) => !onShelf\.has\(summary\.key\)\)\s*\.sort\(\(a, b\) => Date\.parse\(b\.last\) - Date\.parse\(a\.last\)\)\s*\.slice\(0, 24\)/);
-  assert.match(dashboard, /sub\.textContent = `\$\{summary\.count\}件・\$\{shortTime\(summary\.last\)\}`/);
-  assert.match(dashboard, /\.picker-item > span:first-child \{ min-width: 0; overflow: hidden; text-overflow: ellipsis; \}/, '長い名前は省略記号');
-  assert.match(dashboard, /\.chip-picker \{[\s\S]{0,400}max-height: 50vh; overflow-y: auto;/, '候補パネルは縦スクロール');
   // 並び：台帳の項目のあとに自分で足したテーマ
   assert.match(dashboard, /return \[\.\.\.ledger, \.\.\.added\];/);
   // 保存：本人設定に載せ、端末間は保存値を正とする（和集合にしない）
@@ -109,9 +102,6 @@ test('lets the owner add and remove in-progress chips from the dashboard', () =>
   assert.match(dashboard, /shelfDone = new Set\(\(saved\.shelfDone \?\? \[\]\)/);
   assert.match(dashboard, /shelfAdded = \[\.\.\.new Set\(\(saved\.shelfAdded \?\? \[\]\)/);
   assert.doesNotMatch(dashboard, /\.\.\.remoteShelf, \.\.\.shelfDone/, '進行中の印を和集合で合わせない');
-  // スマホ幅：鉛筆は列の右端に sticky、編集中は折り返す
-  assert.match(dashboard, /\.chip\.edit \{\s*position: sticky; right: 0;/);
-  assert.match(dashboard, /\.chips\.editing \{ flex-wrap: wrap; overflow: visible;/);
 });
 
 test('shows only the update time before the toolbar icons', () => {
