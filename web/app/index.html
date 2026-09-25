@@ -1291,7 +1291,7 @@ body.page-controls-hidden #page-actions {
       }
       bar.append(chip(item.title, {
         on: shelfFilter === item.stream,
-        due: chipDue(item.due) ?? { text: String(item.count), soon: false },
+        due: chipDue(item.due),
         onClick: select(item.stream),
         onDone: () => doneShelfItem(item),
       }));
