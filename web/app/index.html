@@ -131,22 +131,25 @@ iframe { flex: 1; width: 100%; border: 0; background: var(--panel); }
   font-size: .74rem; color: rgba(255, 255, 255, .7);
   font-variant-numeric: tabular-nums;
 }
-.topbar-actions { flex: none; margin-left: auto; display: flex; align-items: center; gap: .4rem; }
+.topbar-actions { flex: none; margin-left: auto; margin-right: -.45rem; display: flex; align-items: center; gap: .15rem; }
 
-/* 丸いガラス調のボタン。検索の閉じた姿と同じ寸法にそろえる */
+/* 右上の道具はアイコンだけにする。枠線つきの丸ボタンの真下に絞り込みチップが並ぶと、
+   同じ形の部品が縦横に詰まってごちゃつくので、枠も面も外して記号だけにし、
+   触れたときだけ淡く光らせる。形の役割を「右上＝道具」「2段目＝絞り込み」に分ける。
+   文字ラベルは PC でも出さない（名前は title / aria-label に残す） */
 .tb-btn {
-  height: 2.2rem; padding: 0 .85rem;
-  display: inline-flex; align-items: center; gap: .4rem;
-  border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px;
-  background: rgba(255, 255, 255, .14); color: #fff;
+  width: 2.4rem; height: 2.4rem; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: .4rem;
+  border: 1px solid transparent; border-radius: 999px;
+  background: transparent; color: #fff;
   font: inherit; font-size: .78rem; white-space: nowrap; cursor: pointer;
   transition: background .18s ease, border-color .18s ease;
 }
-.tb-btn:hover { background: rgba(255, 255, 255, .26); border-color: rgba(255, 255, 255, .52); }
+.tb-btn:hover { background: rgba(255, 255, 255, .16); }
 .tb-btn:active { transform: scale(.97); }
-.tb-btn.icon { width: 2.2rem; padding: 0; justify-content: center; }
+.tb-btn .label { display: none; }
 .tb-btn svg {
-  width: 1.05rem; height: 1.05rem; flex: none;
+  width: 1.15rem; height: 1.15rem; flex: none;
   fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round;
 }
@@ -170,25 +173,26 @@ body.refreshing #refresh svg { animation: refresh-spin .65s linear infinite; }
 /* ── 検索。ふだんは虫めがねだけ、押すと横へ伸びて入力欄になる ───── */
 .search {
   position: relative; flex: none;
-  width: 2.2rem; height: 2.2rem; overflow: hidden;
+  width: 2.4rem; height: 2.4rem; overflow: hidden;
   display: flex; align-items: center;
-  border: 1px solid rgba(255, 255, 255, .3); border-radius: 999px;
-  background: rgba(255, 255, 255, .14);
+  border: 1px solid transparent; border-radius: 999px;
+  background: transparent;
   transition: width .26s cubic-bezier(.4, 0, .2, 1), background .18s ease, border-color .18s ease;
 }
+.search:hover { background: rgba(255, 255, 255, .16); }
+/* 入力欄の面は、検索を開いたときだけ出す */
 body.searching .search {
   width: min(17rem, 40vw);
-  background: rgba(255, 255, 255, .22);
-  border-color: rgba(255, 255, 255, .55);
+  background: rgba(255, 255, 255, .2);
 }
 #search-toggle {
-  flex: none; width: 2.15rem; height: 2.15rem;
+  flex: none; width: 2.35rem; height: 2.35rem;
   display: flex; align-items: center; justify-content: center;
   border: 0; background: transparent; color: #fff;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
 }
 #search-toggle svg {
-  width: 1.05rem; height: 1.05rem;
+  width: 1.15rem; height: 1.15rem;
   fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round;
 }
 #q {
@@ -320,24 +324,25 @@ body.searching.has-query #search-clear { display: flex; }
    一覧のカードと同じ見た目にすると「読むもの」と「切り替えるもの」の区別が消えるので、
    一覧の中ではなくヘッダーへ置く。スクロールしてもヘッダーごと残る */
 .chips {
-  display: flex; flex-wrap: wrap; gap: .4rem;
-  padding: 0 max(var(--gutter), env(safe-area-inset-right)) .7rem max(var(--gutter), env(safe-area-inset-left));
+  display: flex; flex-wrap: wrap; gap: .5rem;
+  padding: .15rem max(var(--gutter), env(safe-area-inset-right)) .85rem max(var(--gutter), env(safe-area-inset-left));
 }
 .chips:empty { display: none; }
 body.searching .chips { display: none; }
 .chip {
   flex: none; height: 2rem; padding: 0 .8rem;
   display: inline-flex; align-items: center; gap: .4rem;
-  border: 1px solid rgba(255, 255, 255, .28); border-radius: 999px;
-  background: rgba(255, 255, 255, .12); color: #fff;
+  /* 枠線は持たせず面だけにする。右上の道具（記号だけ）と形で見分けられるように */
+  border: 0; border-radius: 999px;
+  background: rgba(255, 255, 255, .14); color: #fff;
   font: inherit; font-size: .78rem; font-weight: 650; white-space: nowrap;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background .16s ease, border-color .16s ease, color .16s ease;
 }
-.chip:hover { background: rgba(255, 255, 255, .22); border-color: rgba(255, 255, 255, .5); }
+.chip:hover { background: rgba(255, 255, 255, .24); }
 .chip .n { font-size: .68rem; font-weight: 600; opacity: .78; font-variant-numeric: tabular-nums; }
 .chip .n.soon { color: #ffe08a; opacity: 1; }
-.chip.on { background: #fff; border-color: #fff; color: var(--blue-deep); }
+.chip.on { background: #fff; color: var(--blue-deep); box-shadow: 0 2px 10px rgba(14, 13, 106, .18); }
 .chip.on .n { color: var(--mut); opacity: 1; }
 .chip.on .n.soon { color: var(--gold-deep); }
 .chip .x {
@@ -511,15 +516,15 @@ body.page-controls-hidden #page-actions {
            58%がほぼ重なり、2pxで色が急変して「Dynamic Islandだけ別の島」に見える。
            Safariのタブは余白が小さいので再現せず、PWAでだけ出る（2026-08-13 実機で再現）。
            セーフエリアの下から測った実寸で置けば、どちらでも同じなだらかさになる */
-        #0862aa calc(var(--safe-top-inset) + 1.9rem),
-        #0aa0dc calc(var(--safe-top-inset) + 3.2rem)
+        #0862aa calc(var(--safe-top-inset) + 2.4rem),
+        /* 終点はチップの段の下まで延ばす。上の段の高さで水色へ抜けると、
+           白文字のチップが明るい地に沈んで読みにくくなる */
+        #0a86c8 calc(var(--safe-top-inset) + 6.2rem)
       );
   }
-  .topbar-inner { height: 3.2rem; gap: .35rem; }
+  .topbar-inner { height: 3.2rem; gap: .5rem; }
   /* 画面が狭いので、件数の表示は検索・承認依頼の場所を奪わない範囲でだけ出す */
   .brand-meta { display: none; }
-  .tb-btn .label { display: none; }
-  .tb-btn { width: 2.2rem; padding: 0; justify-content: center; }
   /* 検索中はロゴを畳んで、入力欄に残り幅を全部渡す */
   body.searching .brand { padding-right: .3rem; padding-left: .3rem; }
   body.searching .brand .label { display: none; }
@@ -575,7 +580,7 @@ body.page-controls-hidden #page-actions {
               <input id="q" type="search" placeholder="タイトル・リポジトリで絞り込み" autocomplete="off" tabindex="-1">
               <button id="search-clear" type="button" aria-label="検索語を消す">×</button>
             </div>
-            <button class="tb-btn" id="review" type="button" title="インボックス">
+            <button class="tb-btn" id="review" type="button" aria-label="インボックス" title="インボックス">
               <span class="tb-ico">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 13h4l1.4 2.4h5.2L16 13h4M4 13l2.6-7h10.8L20 13v5H4z"/></svg>
                 <span class="tb-dot" id="review-dot" hidden></span>
