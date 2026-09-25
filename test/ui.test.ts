@@ -16,7 +16,11 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /未読に戻す/);
   assert.match(dashboard, /groupByStream/);
   assert.match(dashboard, /const STREAM_STAR_PREFIX = '@stream:'/, 'カードスターを個別ページと区別する');
-  assert.match(dashboard, /head\.append\(count, last, streamStarButton\(stream\)\)/, 'カード見出しにスターを置く');
+  assert.match(dashboard, /head\.append\(count, shelfPinButton\(stream\), streamStarButton\(stream\)\)/, 'カード見出しに進行中へ入れるボタンとスターを置く');
+  assert.doesNotMatch(dashboard, /className = 'tlast'/, 'カード見出しに更新時刻を置かない（各行にあるため）');
+  assert.match(dashboard, /\.tcount \{[^}]*margin-left: auto;[^}]*white-space: nowrap;/, '件数は折り返さず右へ寄せる');
+  assert.match(dashboard, /function shelfPinButton[\s\S]{0,1200}aria-pressed[\s\S]{0,1200}if \(item\) doneShelfItem\(item\);\s*else addShelfStream\(stream\.key\);/, '進行中へ入れるボタンは登録済みなら外し、未登録なら既存の追加処理で足す');
+  assert.match(dashboard, /b\.title = on \? '進行中から外す' : '進行中に入れる';\s*b\.setAttribute\('aria-label'/, '進行中へ入れるボタンに title と aria-label を付ける');
   assert.match(dashboard, /const pageIsStarred = \(page\) => isStarred\(page\) \|\| starred\.has\(streamStarId\(pageStream\(page\)\)\)/, 'カードのスターはテーマ丸ごとスターの絞り込みに入れる');
   assert.match(dashboard, /shelfFilter === STAR_FILTER[\s\S]{0,40}visiblePages\(\)\.filter\(pageIsStarred\)/, 'スターのチップで一覧を絞り込む');
   assert.doesNotMatch(dashboard, /appendDateGroup\('スター'/, 'スター段は一覧に出さない');

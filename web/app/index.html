@@ -247,12 +247,9 @@ body.searching.has-query #search-clear { display: flex; }
   break-inside: avoid; -webkit-column-break-inside: avoid;
 }
 .th { display: flex; align-items: center; gap: .55rem; padding: .7rem 1.05rem .55rem; }
-.tname { font-size: .9rem; font-weight: 700; letter-spacing: .01em; color: var(--blue-deep); }
-.tcount { font-size: .72rem; color: var(--mut); }
-.tlast {
-  margin-left: auto; font-size: .72rem; color: var(--mut);
-  font-variant-numeric: tabular-nums;
-}
+.tname { min-width: 0; font-size: .9rem; font-weight: 700; letter-spacing: .01em; color: var(--blue-deep); }
+/* 更新時刻は各行に出ているので見出しには置かない。件数は折り返さず右へ寄せる */
+.tcount { margin-left: auto; font-size: .72rem; color: var(--mut); white-space: nowrap; }
 .th > .star {
   flex: none; width: 2rem; height: 2rem; margin: -.35rem -.45rem -.35rem -.1rem;
   font-size: 1rem;
@@ -621,6 +618,19 @@ body.page-controls-hidden #page-actions {
 @media (max-width: 46rem) {
   .chips.editing .chip.edit { background: transparent; box-shadow: none; }
 }
+
+/* カード見出しの「進行中へ入れる」。☆ と同じ寸法で左に並べる */
+.shelf-pin {
+  flex: none; width: 2rem; height: 2rem; margin: -.35rem -.3rem -.35rem .1rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: 50%; background: transparent; color: var(--mut); cursor: pointer;
+  transition: background .12s ease, color .12s ease;
+}
+.shelf-pin:hover { background: var(--blue-soft); color: var(--blue); }
+.shelf-pin svg { width: 1.15rem; height: 1.15rem; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.shelf-pin.on { color: var(--blue); }
+.shelf-pin.on .fill { fill: var(--blue); stroke: var(--blue); }
+.shelf-pin.on .mark { stroke: #fff; stroke-width: 2; }
 </style>
 </head>
 <body>
@@ -1109,6 +1119,27 @@ body.page-controls-hidden #page-actions {
     return wrap;
   }
 
+  /** カード見出しの「進行中へ入れる」。押すとヘッダーのチップ列へ足し、もう一度押すと外す */
+  function shelfPinButton(stream) {
+    const item = liveShelf().find((i) => i.stream === stream.key);
+    const on = Boolean(item);
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `shelf-pin${on ? ' on' : ''}`;
+    b.setAttribute('aria-pressed', String(on));
+    b.title = on ? '進行中から外す' : '進行中に入れる';
+    b.setAttribute('aria-label', `${stream.label}を${b.title}`);
+    b.innerHTML = on
+      ? '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="11" rx="5.5" class="fill"/><path d="M8.5 12.2l2.3 2.3 4.7-4.7" class="mark"/></svg>'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="6.5" width="19" height="11" rx="5.5"/><path d="M12 9.3v5.4M9.3 12h5.4"/></svg>';
+    b.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (item) doneShelfItem(item);
+      else addShelfStream(stream.key);
+    });
+    return b;
+  }
+
   /** テーマ1つぶんの塊。1件しかないテーマは見出しを付けず、単独の行として置く */
   function appendStream(parent, stream) {
     if (stream.pages.length === 1) {
@@ -1132,12 +1163,8 @@ body.page-controls-hidden #page-actions {
     const count = document.createElement('span');
     count.className = 'tcount';
     count.textContent = `${stream.pages.length}件`;
-    const last = document.createElement('time');
-    last.className = 'tlast';
-    last.dateTime = stream.pages[0].date;
-    last.textContent = shortTime(stream.pages[0].date);
-    last.title = `更新 ${fmtDateTime(stream.pages[0].date)}`;
-    head.append(count, last, streamStarButton(stream));
+    // 更新時刻は各行に出ているので見出しには置かない（拡大表示で見出しが折り返す原因になる）
+    head.append(count, shelfPinButton(stream), streamStarButton(stream));
     section.append(head);
 
     // 絞り込み中は「他N件」で隠さない。探している1件が畳まれた中にいると見つけられない
