@@ -94,6 +94,17 @@ export function cleanShelfDone(value: unknown, stored: unknown): string[] {
   return cleanSourceList(value, 'shelfDone', 300);
 }
 
+/**
+ * 本人が「＋ 追加」で進行中へ足したテーマのキー（足した順）。
+ * 送られてこなければ shelfDone と同じく保存済みの値を残す。
+ */
+export function cleanShelfAdded(value: unknown, stored: unknown): string[] {
+  if (value === undefined) {
+    return Array.isArray(stored) ? stored.filter((item): item is string => typeof item === 'string') : [];
+  }
+  return cleanSourceList(value, 'shelfAdded', 100);
+}
+
 function isoOrNull(value: unknown): string | null {
   const text = typeof value === 'string' ? value.trim() : '';
   return text && !Number.isNaN(Date.parse(text)) ? text : null;
@@ -280,6 +291,7 @@ export async function handler(event: any): Promise<any> {
           hiddenSources: result.Item?.hiddenSources ?? [],
           readMarks: result.Item?.readMarks ?? null,
           shelfDone: result.Item?.shelfDone ?? [],
+          shelfAdded: result.Item?.shelfAdded ?? [],
           updatedAt: result.Item?.updatedAt ?? null,
         });
       }
@@ -289,16 +301,19 @@ export async function handler(event: any): Promise<any> {
         const recentSources = cleanSourceList(body.recentSources ?? [], 'recentSources', 6);
         const hiddenSources = cleanSourceList(body.hiddenSources ?? [], 'hiddenSources', 500);
         const readMarks = cleanReadMarks(body.readMarks ?? {}, 800);
-        const stored = body.shelfDone === undefined
-          ? (await ddb.send(new GetCommand({ TableName: table, Key: PREFERENCES_KEY, ConsistentRead: true }))).Item?.shelfDone
+        // 棚の項目を知らない古いクライアントの PUT でも消さないよう、送られなかった分は保存値を残す。
+        // 保存値の読み出しは、どちらが欠けていても1回で済ませる
+        const stored = body.shelfDone === undefined || body.shelfAdded === undefined
+          ? (await ddb.send(new GetCommand({ TableName: table, Key: PREFERENCES_KEY, ConsistentRead: true }))).Item
           : undefined;
-        const shelfDone = cleanShelfDone(body.shelfDone, stored);
+        const shelfDone = cleanShelfDone(body.shelfDone, stored?.shelfDone);
+        const shelfAdded = cleanShelfAdded(body.shelfAdded, stored?.shelfAdded);
         const updatedAt = new Date().toISOString();
         await ddb.send(new PutCommand({
           TableName: table,
-          Item: { ...PREFERENCES_KEY, starredSources, recentSources, hiddenSources, readMarks, shelfDone, updatedAt },
+          Item: { ...PREFERENCES_KEY, starredSources, recentSources, hiddenSources, readMarks, shelfDone, shelfAdded, updatedAt },
         }));
-        return json(200, { starredSources, recentSources, hiddenSources, readMarks, shelfDone, updatedAt });
+        return json(200, { starredSources, recentSources, hiddenSources, readMarks, shelfDone, shelfAdded, updatedAt });
       }
       if (verb === 'POST' && path === '/api/owner/shares') {
         const body = parseBody(event);

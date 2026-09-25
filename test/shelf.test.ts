@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { cleanShelfDone } from '../functions/review-handler.ts';
+import { cleanShelfAdded, cleanShelfDone } from '../functions/review-handler.ts';
 import { buildShelf, type BuiltPage } from '../src/bundle.js';
 
 function page(slug: string, stream: string, updatedAt: string): BuiltPage {
@@ -60,4 +60,15 @@ test('dedupes shelf marks and keeps stored marks when an old client omits them',
   assert.deepEqual(cleanShelfDone([], ['a']), []);
   assert.throws(() => cleanShelfDone(Array.from({ length: 301 }, (_, i) => `id-${i}`), []), /shelfDone is invalid/);
   assert.throws(() => cleanShelfDone('a', []), /shelfDone is invalid/);
+});
+
+test('dedupes added themes, caps them at 100, and keeps stored ones when omitted', () => {
+  assert.deepEqual(cleanShelfAdded(['book', 'book', 'talk'], ['old']), ['book', 'talk']);
+  assert.deepEqual(cleanShelfAdded(undefined, ['book', 'talk']), ['book', 'talk']);
+  assert.deepEqual(cleanShelfAdded(undefined, undefined), []);
+  assert.deepEqual(cleanShelfAdded(undefined, ['a', 1]), ['a']);
+  assert.deepEqual(cleanShelfAdded([], ['a']), []);
+  assert.equal(cleanShelfAdded(Array.from({ length: 100 }, (_, i) => `s-${i}`), []).length, 100);
+  assert.throws(() => cleanShelfAdded(Array.from({ length: 101 }, (_, i) => `s-${i}`), []), /shelfAdded is invalid/);
+  assert.throws(() => cleanShelfAdded('a', []), /shelfAdded is invalid/);
 });

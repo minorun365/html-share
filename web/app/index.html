@@ -126,11 +126,13 @@ iframe { flex: 1; width: 100%; border: 0; background: var(--panel); }
   stroke-linecap: round; stroke-linejoin: round; opacity: .85;
 }
 .brand-meta {
-  flex: 1; min-width: 0;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-  font-size: .74rem; color: rgba(255, 255, 255, .7);
-  font-variant-numeric: tabular-nums;
+  /* 更新時刻だけを、右のアイコンの手前に小さく添える。右の細い線でアイコンと区切る */
+  flex: none; margin-right: .5rem; padding-right: .7rem;
+  border-right: 1px solid rgba(255, 255, 255, .22);
+  font-size: .7rem; font-weight: 500; letter-spacing: .04em;
+  color: rgba(255, 255, 255, .62); font-variant-numeric: tabular-nums; white-space: nowrap;
 }
+body.searching .brand-meta { display: none; }
 .topbar-actions { flex: none; margin-left: auto; margin-right: -.45rem; display: flex; align-items: center; gap: .15rem; }
 
 /* 右上の道具はアイコンだけにする。枠線つきの丸ボタンの真下に絞り込みチップが並ぶと、
@@ -352,6 +354,37 @@ body.searching .chips { display: none; }
 }
 .chip .x:hover { background: var(--blue-soft); color: var(--blue); }
 .chip.link .n::after { content: " ↗"; }
+/* ── 進行中の足し引き。鉛筆 → 編集中は全チップに ✕、並びの最後に「＋ 追加」と「完了」 ── */
+.chip.ghost { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32); }
+.chip.ghost:hover { background: rgba(255, 255, 255, .14); }
+.chip.ghost.on { background: #fff; color: var(--blue-deep); box-shadow: none; }
+.chip.edit { width: 2rem; padding: 0; justify-content: center; }
+.chip.edit.on { width: auto; padding: 0 .85rem; }
+.chip.edit svg { width: .95rem; height: .95rem; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.chip:not(.on) .x { color: rgba(255, 255, 255, .8); }
+.chip:not(.on) .x:hover { background: rgba(255, 255, 255, .2); color: #fff; }
+/* 「＋ 追加」で開く候補。上バーの中、チップの列の下に白い面で出す */
+.chip-picker {
+  margin: 0 max(var(--gutter), env(safe-area-inset-right)) .85rem max(var(--gutter), env(safe-area-inset-left));
+  padding: .8rem .9rem .9rem; border-radius: 1rem; background: #fff; color: var(--ink);
+  box-shadow: 0 12px 32px rgba(14, 13, 106, .22);
+  max-height: 50vh; overflow-y: auto;
+}
+.chip-picker[hidden] { display: none; }
+body.searching .chip-picker { display: none; }
+.picker-head { margin: 0 0 .55rem; font-size: .72rem; font-weight: 700; letter-spacing: .08em; color: var(--mut); }
+.picker-list { display: flex; flex-wrap: wrap; gap: .4rem; }
+.picker-item {
+  display: inline-flex; align-items: center; gap: .45rem; height: 2rem; padding: 0 .8rem;
+  max-width: 100%; min-width: 0;
+  border: 0; border-radius: 999px; background: var(--blue-soft); color: var(--blue-deep);
+  font: inherit; font-size: .78rem; font-weight: 650; cursor: pointer; white-space: nowrap;
+}
+.picker-item:hover { background: #dbe8f7; }
+.picker-item::before { content: "＋"; color: var(--blue); font-weight: 700; }
+.picker-item > span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.picker-item .n { flex: none; font-size: .68rem; font-weight: 500; color: var(--mut); }
+.picker-empty { margin: 0; font-size: .78rem; color: var(--mut); }
 /* 絞り込み中にだけ出す1行。何で絞っているか・締切・メモを本文の先頭で示す */
 .filter-note {
   margin: 1.1rem var(--gutter) -.4rem; font-size: .8rem; color: var(--sub);
@@ -558,6 +591,20 @@ body.page-controls-hidden #page-actions {
     background: #fff; backdrop-filter: none; -webkit-backdrop-filter: none;
   }
 }
+@media (max-width: 46rem) {
+  /* 鉛筆はチップの列の右端に貼り付け、横へ流さなくても押せるようにする */
+  .chips { padding-right: 0; }
+  .chip.edit {
+    position: sticky; right: 0; margin-left: auto;
+    background: #0a7cc0;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .32), -.9rem 0 .8rem .1rem #0a7cc0;
+  }
+  .chips > .chip:last-child { margin-right: max(var(--gutter), env(safe-area-inset-right)); }
+  /* 編集中は全部を見せたいので、横に流さず折り返す */
+  .chips.editing { flex-wrap: wrap; overflow: visible; padding-right: max(var(--gutter), env(safe-area-inset-right)); }
+  .chips.editing > .chip:last-child { margin-right: 0; }
+  .chips.editing .chip.edit { position: static; background: #fff; box-shadow: none; }
+}
 </style>
 </head>
 <body>
@@ -571,8 +618,8 @@ body.page-controls-hidden #page-actions {
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.2 12 4.5l8 6.7M6.4 9.6V19h11.2V9.6"/></svg>
             <span class="label">HTML共有くん</span>
           </button>
-          <span class="brand-meta" id="brand-meta"></span>
           <div class="topbar-actions">
+            <span class="brand-meta" id="brand-meta"></span>
             <div class="search" id="search">
               <button id="search-toggle" type="button" aria-label="検索する" aria-expanded="false">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6.4" fill="none"/><path d="m20 20-4.2-4.2"/></svg>
@@ -593,6 +640,7 @@ body.page-controls-hidden #page-actions {
           </div>
         </div>
         <nav class="chips" id="chips" aria-label="一覧の絞り込み"></nav>
+        <div class="chip-picker" id="chip-picker" hidden></div>
       </header>
       <p class="filter-note" id="filter-note" hidden></p>
       <div class="home-content">
@@ -657,12 +705,17 @@ body.page-controls-hidden #page-actions {
   const HIDDEN_KEY = 'mb_hidden_pages';
   const READ_KEY = 'mb_read_marks';
   const SHELF_DONE_KEY = 'mb_shelf_done';
+  const SHELF_ADDED_KEY = 'mb_shelf_added';
   const CAN_SYNC = location.protocol === 'https:';
   let allPages = [], pages = [], current = null, meta = null;
   let starred = new Set();
   let hiddenSources = new Set();
   // 進行中の棚から ✓ で下ろした項目の id。棚の台帳（設定ファイル）は書き換えず、本人設定として同期する
   let shelfDone = new Set();
+  // 本人がチップの「＋ 追加」で進行中へ足したテーマのキー（足した順）
+  let shelfAdded = [];
+  let chipEditing = false;
+  let chipPicking = false;
   // 棚の行を押して絞り込み中のテーマキー。もう一度押すと解除する
   let shelfFilter = null;
   // { ページの source: 開いたときの更新日時 }。更新日時ごと持つので、再更新で自動的に未読へ戻る
@@ -686,6 +739,10 @@ body.page-controls-hidden #page-actions {
   try {
     const saved = JSON.parse(localStorage.getItem(SHELF_DONE_KEY) ?? '[]');
     if (Array.isArray(saved)) shelfDone = new Set(saved.filter((item) => typeof item === 'string'));
+  } catch { /* 壊れた保存値は空として扱う */ }
+  try {
+    const saved = JSON.parse(localStorage.getItem(SHELF_ADDED_KEY) ?? '[]');
+    if (Array.isArray(saved)) shelfAdded = saved.filter((item) => typeof item === 'string');
   } catch { /* 壊れた保存値は空として扱う */ }
   try {
     const raw = localStorage.getItem(READ_KEY);
@@ -726,6 +783,7 @@ body.page-controls-hidden #page-actions {
       localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hiddenSources]));
       localStorage.setItem(READ_KEY, JSON.stringify(readMarks));
       localStorage.setItem(SHELF_DONE_KEY, JSON.stringify([...shelfDone]));
+      localStorage.setItem(SHELF_ADDED_KEY, JSON.stringify(shelfAdded));
       knowsReadMarks = true;
     } catch { /* noop */ }
   }
@@ -795,6 +853,7 @@ body.page-controls-hidden #page-actions {
       hiddenSources: [...hiddenSources],
       readMarks,
       shelfDone: [...shelfDone],
+      shelfAdded,
     });
     await preferencesApi({ method: 'PUT', body });
   }
@@ -827,6 +886,8 @@ body.page-controls-hidden #page-actions {
     // 棚から消えた項目の印は持ち続けない（保存の上限に当たらないようにする）
     const validShelf = new Set((meta?.shelf ?? []).map((item) => item.id));
     shelfDone = new Set([...shelfDone].filter((id) => validShelf.has(id)));
+    // ページが1件も無くなったテーマは、足した記録も持ち続けない
+    shelfAdded = shelfAdded.filter((key) => validStreams.has(key));
     pruneReadMarks(validSources);
     pages = allPages.filter((page) => !hiddenSources.has(page.source));
     updateTrashToggle();
@@ -843,10 +904,11 @@ body.page-controls-hidden #page-actions {
         starred = new Set((saved.starredSources ?? [])
           .filter((value) => isValidStarValue(value, validSources, validStreams)));
         hiddenSources = new Set((saved.hiddenSources ?? []).filter((source) => validSources.has(source)));
-        // 片方の端末でだけ下ろした印も失わないよう、手元と保存値を合わせる
-        const remoteShelf = new Set((saved.shelfDone ?? []).filter((id) => typeof id === 'string'));
-        const shelfNeedsPush = [...shelfDone].some((id) => !remoteShelf.has(id));
-        shelfDone = new Set([...remoteShelf, ...shelfDone].filter((id) => validShelf.has(id)));
+        // 進行中は足す・外すの両方向があるので、和集合にせずスターと同じく保存値を正とする
+        shelfDone = new Set((saved.shelfDone ?? [])
+          .filter((id) => typeof id === 'string' && validShelf.has(id)));
+        shelfAdded = [...new Set((saved.shelfAdded ?? [])
+          .filter((key) => typeof key === 'string' && validStreams.has(key)))];
         const needsPush = hasUnsyncedReadMarks(saved.readMarks);
         readMarks = L.mergeReadMarks(readMarks, saved.readMarks ?? {});
         pruneReadMarks(validSources);
@@ -854,7 +916,7 @@ body.page-controls-hidden #page-actions {
         const firstRun = !hadLocalReadMarks && saved.readMarks === null;
         if (firstRun) seedReadMarks();
         saveLocalPreferences();
-        if (needsPush || firstRun || shelfNeedsPush) await persistPreferencesRemote();
+        if (needsPush || firstRun) await persistPreferencesRemote();
       } else {
         if (!hadLocalReadMarks) seedReadMarks();
         saveLocalPreferences();
@@ -1134,17 +1196,54 @@ body.page-controls-hidden #page-actions {
     return { text: `${rel}・${date}`, soon: diff <= 3 };
   }
 
+  /** 進行中から外す。台帳（設定の shelf）の項目は下ろした印を、自分で足したテーマは足した記録を消す */
   function doneShelfItem(item) {
-    shelfDone.add(item.id);
+    if (item.added) shelfAdded = shelfAdded.filter((key) => key !== item.stream);
+    else shelfDone.add(item.id);
     if (shelfFilter === item.stream) shelfFilter = null;
     queuePreferenceSave();
     renderHome();
   }
 
+  /** テーマを進行中へ足す。台帳にあって下ろしていた項目なら、下ろした印を外して締切ごと戻す */
+  function addShelfStream(streamKey) {
+    const ledger = (meta?.shelf ?? []).find((item) => item.stream === streamKey);
+    if (ledger && shelfDone.has(ledger.id)) shelfDone.delete(ledger.id);
+    else if (!ledger && !shelfAdded.includes(streamKey)) shelfAdded.push(streamKey);
+    queuePreferenceSave();
+    renderHome();
+  }
+
   const STAR_FILTER = '@star';
-  // テーマの項目は、そのテーマのページが実在するものだけを出す
-  const liveShelf = () => (meta?.shelf ?? []).filter((item) => !shelfDone.has(item.id)
-    && (item.url || allPages.some((candidate) => candidate.slug === item.slug)));
+  /** テーマごとの名前・件数・最終更新（削除済みは数えない） */
+  function streamSummaries() {
+    const map = new Map();
+    for (const page of pages) {
+      const key = pageStream(page);
+      if (!map.has(key)) map.set(key, { key, label: pageStreamLabel(page), count: 0, last: page.date });
+      const summary = map.get(key);
+      summary.count += 1;
+      if (Date.parse(page.date) > Date.parse(summary.last)) summary.last = page.date;
+    }
+    return map;
+  }
+  /**
+   * いま進行中に並ぶ項目。台帳の項目（締切順）のあとに、自分で足したテーマを足した順で続ける。
+   * 台帳のテーマの項目は、そのテーマのページが実在するものだけを出す
+   */
+  function liveShelf() {
+    const ledger = (meta?.shelf ?? []).filter((item) => !shelfDone.has(item.id)
+      && (item.url || allPages.some((candidate) => candidate.slug === item.slug)));
+    const onShelf = new Set(ledger.map((item) => item.stream).filter(Boolean));
+    const summaries = streamSummaries();
+    const added = shelfAdded
+      .filter((key) => !onShelf.has(key) && summaries.has(key))
+      .map((key) => {
+        const summary = summaries.get(key);
+        return { id: `@added:${key}`, title: summary.label, stream: key, count: summary.count, last: summary.last, due: null, added: true };
+      });
+    return [...ledger, ...added];
+  }
   // ページのスターと、テーマ見出し（カード）のスターの両方を「スター」の絞り込みに含める
   const pageIsStarred = (page) => isStarred(page) || starred.has(streamStarId(pageStream(page)));
 
@@ -1175,7 +1274,8 @@ body.page-controls-hidden #page-actions {
       el.append(n);
     }
     el.addEventListener('click', onClick);
-    if (on && onDone) {
+    // ✕ は選択中のチップと、編集中の全チップに出す
+    if (onDone && (on || chipEditing)) {
       const x = document.createElement('span');
       x.className = 'x';
       x.setAttribute('role', 'button');
@@ -1192,6 +1292,9 @@ body.page-controls-hidden #page-actions {
   function renderChips() {
     const bar = $('chips');
     bar.replaceChildren();
+    bar.classList.toggle('editing', chipEditing);
+    // 追加の候補は、削除済みの表示と検索中には自分で隠れる
+    renderChipPicker();
     // 削除済みの表示と検索中は絞り込みを使わない
     if (showingTrash || filterText.trim()) return;
     const select = (key) => () => { shelfFilter = shelfFilter === key ? null : key; renderHome(); };
@@ -1205,6 +1308,7 @@ body.page-controls-hidden #page-actions {
         bar.append(chip(item.title, {
           due: chipDue(item.due), link: true,
           onClick: () => window.open(item.url, '_blank', 'noopener,noreferrer'),
+          onDone: () => doneShelfItem(item),
         }));
         continue;
       }
@@ -1215,6 +1319,71 @@ body.page-controls-hidden #page-actions {
         onDone: () => doneShelfItem(item),
       }));
     }
+    // 並びの最後に、足し引きの入口を置く。ふだんは鉛筆だけ、編集中は「＋ 追加」と「完了」
+    if (chipEditing) {
+      const add = document.createElement('button');
+      add.type = 'button';
+      add.className = `chip ghost${chipPicking ? ' on' : ''}`;
+      add.textContent = '＋ 追加';
+      add.setAttribute('aria-expanded', String(chipPicking));
+      add.addEventListener('click', () => { chipPicking = !chipPicking; renderHome(); });
+      bar.append(add);
+    }
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.className = `chip ghost edit${chipEditing ? ' on' : ''}`;
+    edit.setAttribute('aria-label', chipEditing ? '編集を終える' : '進行中を編集する');
+    edit.title = chipEditing ? '編集を終える' : '進行中を足す・外す';
+    edit.innerHTML = chipEditing
+      ? '完了'
+      : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4"/></svg>';
+    edit.addEventListener('click', () => {
+      chipEditing = !chipEditing;
+      chipPicking = false;
+      renderHome();
+    });
+    bar.append(edit);
+  }
+
+  /** 「＋ 追加」で開く候補。進行中に無いテーマを最近動いた順に並べ、押すたびに1つずつ足す */
+  function renderChipPicker() {
+    const box = $('chip-picker');
+    box.replaceChildren();
+    box.hidden = !(chipEditing && chipPicking) || showingTrash || Boolean(filterText.trim());
+    if (box.hidden) return;
+    const onShelf = new Set(liveShelf().map((item) => item.stream).filter(Boolean));
+    const candidates = [...streamSummaries().values()]
+      .filter((summary) => !onShelf.has(summary.key))
+      .sort((a, b) => Date.parse(b.last) - Date.parse(a.last))
+      .slice(0, 24);
+    const head = document.createElement('p');
+    head.className = 'picker-head';
+    head.textContent = '進行中に足すテーマ（最近動いた順）';
+    box.append(head);
+    if (candidates.length === 0) {
+      const none = document.createElement('p');
+      none.className = 'picker-empty';
+      none.textContent = '足せるテーマはありません';
+      box.append(none);
+      return;
+    }
+    const list = document.createElement('div');
+    list.className = 'picker-list';
+    for (const summary of candidates) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'picker-item';
+      button.title = summary.label;
+      const name = document.createElement('span');
+      name.textContent = summary.label;
+      const sub = document.createElement('span');
+      sub.className = 'n';
+      sub.textContent = `${summary.count}件・${shortTime(summary.last)}`;
+      button.append(name, sub);
+      button.addEventListener('click', () => addShelfStream(summary.key));
+      list.append(button);
+    }
+    box.append(list);
   }
 
   /** 絞り込み中の1行。何で絞っているかと、締切・メモ・件数を本文の先頭に出す */
@@ -1298,7 +1467,9 @@ body.page-controls-hidden #page-actions {
   }
 
   function setStamp() {
-    if (meta) brandMeta.textContent = `${pages.length}ページ ／ ${fmtDateTime(meta.generatedAt)} 更新`;
+    if (!meta) return;
+    brandMeta.textContent = `${shortTime(meta.generatedAt)} 更新`;
+    brandMeta.title = `最終更新 ${fmtDateTime(meta.generatedAt)}`;
   }
 
   function loadFrame(url) {
