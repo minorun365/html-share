@@ -200,7 +200,8 @@ main {
 /* 依頼カードに出すプロジェクト名。指定なしの依頼には出さない（未指定が既定なので、
    毎回「おまかせ」と書くとカードが賑やかになるだけで情報が増えない） */
 .target-badge {
-  display: inline-block; margin: 0 0 .4rem; padding: .15rem .6rem;
+  display: inline-block; min-width: 0; margin: 0; padding: .15rem .6rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   border-radius: 999px; background: var(--blue-soft); color: var(--blue-deep);
   font-size: .72rem; font-weight: 700;
 }
@@ -494,14 +495,13 @@ footer {
       : '';
     const heading = request ? '' : `<span class="title">${escapeHtml(task.title)}</span>`;
     const target = request && task.target
-      ? `<span class="target-badge">${escapeHtml(task.target)}</span>`
+      ? `<span class="target-badge" title="${escapeHtml(task.target)}">${escapeHtml(task.target)}</span>`
       : '';
     card.innerHTML = `
       <div class="meta">
-        ${heading}
+        ${heading}${target}
         <span class="time">${relativeTime(task.updatedAt)}</span>
       </div>
-      ${target}
       <p class="question">${escapeHtml(task.question)}</p>
       ${context}${recommendation}${response}
     `;
