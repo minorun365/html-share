@@ -91,10 +91,26 @@ async function deleteKeys(client: S3Client, bucket: string, keys: string[]): Pro
  *   中身のハッシュで比べて差分だけを送り、消えたものだけを消す。
  *   バケットは SSE-S3 なので、単一パートで上げた分の ETag は中身の MD5 と一致する。
  */
+/**
+ * 送る前に、バケットの中身が大きく減らないことを確かめる。
+ *
+ *   syncTree は「ローカルに無いキーは消す」。設定ファイルが空や途中までのまま build すると、
+ *   生成物が数件しか無い状態を正として、バケットのページを丸ごと消してしまう。
+ *   いまのバケットから2割以上減る送信は、HTML_SHARE_ALLOW_SHRINK=1 を付けたときだけ通す。
+ */
+export function assertNotShrinking(remoteCount: number, localCount: number, allow = process.env.HTML_SHARE_ALLOW_SHRINK === '1'): void {
+  if (allow || remoteCount <= 50) return;
+  if (localCount < remoteCount * 0.8) {
+    throw new Error(`Refusing to publish: the build has ${localCount} files but the bucket has ${remoteCount}. Check your page list, or set HTML_SHARE_ALLOW_SHRINK=1 if the removal is intended.`);
+  }
+}
+
 async function syncTree(client: S3Client, bucket: string, root: string): Promise<void> {
   const remote = await remoteObjects(client, bucket);
+  const local = files(root);
+  assertNotShrinking(remote.size, local.length);
   const kept = new Set<string>();
-  for (const relative of files(root)) {
+  for (const relative of local) {
     const file = path.join(root, relative);
     const key = relative.split(path.sep).join('/');
     kept.add(key);

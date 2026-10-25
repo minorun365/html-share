@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { BuiltPage } from '../src/bundle.js';
 import type { HtmlShareConfig } from '../src/config.js';
-import { acquirePublishLock, buildOnly, matchingPages } from '../src/publish.js';
+import { acquirePublishLock, assertNotShrinking, buildOnly, matchingPages } from '../src/publish.js';
 
 function page(slug: string, title = slug): BuiltPage {
   return {
@@ -79,4 +79,11 @@ test('buildOnly acquires the same lock', () => {
   const release = acquirePublishLock(config);
   assert.throws(() => buildOnly(config), /Another publish is in progress/);
   release();
+});
+
+test('refuses a publish that would delete most of the bucket', () => {
+  assert.throws(() => assertNotShrinking(1000, 3, false), /Refusing to publish/);
+  assert.doesNotThrow(() => assertNotShrinking(1000, 950, false));
+  assert.doesNotThrow(() => assertNotShrinking(1000, 3, true));
+  assert.doesNotThrow(() => assertNotShrinking(20, 0, false));
 });
