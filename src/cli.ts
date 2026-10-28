@@ -119,14 +119,13 @@ async function main(): Promise<void> {
     }
     if (action === 'inbox') {
       const requests = await listInbox(config);
-      // The hint travels with the data so an agent that skipped the skill still closes what it
-      // picked up. A request left open is indistinguishable from one no computer has taken yet.
+      // Keep requests pending until their independent destination is confirmed.
       const next = requests.length
-        ? 'Oldest first. Close them all with `html-share review complete <id...>` before starting,'
-          + ' then identify each request\'s working folder and work through them in order.'
-          + ' `target` is a nickname hint, not a filesystem path — verify it before using it.'
-          + ' The inbox is a handover box, not a progress tracker, so do not wait for the work to finish.'
-          + ' Report progress and results in chat.'
+        ? 'Oldest first. Verify each target repository and follow the inbox skill to launch one session per independent request.'
+          + ' Continue here only when both repository and topic match. Serialize overlapping work.'
+          + ' Record and verify the destination before `html-share review complete <id>`.'
+          + ' Keep failed, ambiguous, or waiting requests open. Reuse existing dispatch receipts instead of relaunching.'
+          + ' `target` is a nickname hint, not a filesystem path.'
         : undefined;
       console.log(JSON.stringify({ ok: true, requests, ...(next ? { next } : {}) }, null, 2));
       return;
