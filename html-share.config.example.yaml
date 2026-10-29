@@ -26,6 +26,10 @@ content:
       streamChip: デモ
   ownerLinkDays: 30
   maximumShareDays: 30
+  # 最終更新からこの日数を過ぎたページを配信から外し、一覧の「保管庫」にタイトルだけ残します。
+  # 省略すると保管庫へは移しません。長く残したいページには pages の各項目へ keep: 2026-03-31（見直し日）を書きます。
+  # 戻すときは html-share page revive <slug>。詳しくは docs/retention.md
+  retainDays: 30
   maximumAssetBytes: 10485760
   # 社内限定URLを使う場合だけ、組織の出口IPをCIDRで指定します。
   allowedInternalCidrs:

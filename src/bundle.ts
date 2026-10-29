@@ -12,6 +12,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { HtmlShareConfig, PageConfig, ShelfItemConfig, StreamDue } from './config.js';
 import { resolveFromConfig, validatedRoots } from './config.js';
+import { keepReason } from './retention.js';
 
 function packageRoot(): string {
   let directory = path.dirname(fileURLToPath(import.meta.url));
@@ -78,11 +79,31 @@ export interface ShelfEntry {
   last: string | null;
 }
 
+/**
+ * 保管庫のページ。配信から外したので開けない。一覧にタイトルを残し、revive で戻すための手がかりだけを持つ
+ */
+export interface ArchivedPage {
+  slug: string;
+  title: string;
+  source: string;
+  updatedAt: string;
+  date: string;
+  repository: string;
+  stream: string;
+  streamLabel: string;
+  /** 書いてあった見直し日（過ぎているので保管庫にある） */
+  keep: string | null;
+}
+
 export interface BuildManifest {
   generatedAt: string;
   internalSharing: boolean;
   maximumShareDays: number;
+  /** 保持期限の日数。null なら保管庫へ移さない */
+  retainDays: number | null;
   pages: BuiltPage[];
+  /** 保持期限を過ぎて配信から外したページ。新しい順 */
+  archived: ArchivedPage[];
   shelf: ShelfEntry[];
   /** テーマキー → まだ生きている期限。押しピンで足したテーマもここから期限を引く */
   streamDues: Record<string, StreamDue[]>;
@@ -91,11 +112,11 @@ export interface BuildManifest {
 const DAY_MS = 86400e3;
 
 /** 進行中フィルターの日付は JST の暦日で比べる */
-function jstToday(now: Date): string {
+export function jstToday(now: Date): string {
   return new Date(now.getTime() + 9 * 3600e3).toISOString().slice(0, 10);
 }
 
-function addDays(date: string, days: number): string {
+export function addDays(date: string, days: number): string {
   return new Date(Date.parse(date) + days * DAY_MS).toISOString().slice(0, 10);
 }
 
@@ -396,62 +417,107 @@ function resolveOgImage(config: HtmlShareConfig, contentRoot: string): string | 
   return `https://${config.aws.contentDomain}/${OG_CARD_KEY}?v=${version}`;
 }
 
-export function buildSite(config: HtmlShareConfig, buildRoot: string): BuildManifest {
+export function buildSite(config: HtmlShareConfig, buildRoot: string, now = new Date()): BuildManifest {
   const roots = validatedRoots(config);
   const contentRoot = path.join(buildRoot, 'content');
   rmSync(buildRoot, { recursive: true, force: true });
   mkdirSync(contentRoot, { recursive: true });
   const ogImageUrl = resolveOgImage(config, contentRoot);
+  // slug は保管庫のページも含めた全ページで決める。保管庫から戻したときに同じURLへ戻すため
   const used = new Set<string>();
   const drafts = config.content.pages.map((page) => {
     const source = pagePath(config, page);
     const sourceReal = realpathSync(source);
+    if (!inside(sourceReal, roots)) throw new Error(`Page is outside content.roots: ${source}`);
+    const fallback = path.basename(source, path.extname(source));
+    let slug = slugify(page.slug || fallback);
+    if (used.has(slug)) slug = `${slug}-${createHash('sha256').update(sourceReal).digest('hex').slice(0, 6)}`;
+    used.add(slug);
+    const updatedAt = statSync(sourceReal).mtime.toISOString();
+    const repository = page.repository || defaultGroup(page);
+    const stream = page.stream || repository;
+    return {
+      page,
+      sourceReal,
+      built: {
+        slug,
+        title: page.title || extractTitle(readFileSync(sourceReal, 'utf8'), fallback),
+        source: page.path,
+        updatedAt,
+        date: updatedAt,
+        repository,
+        stream,
+        streamLabel: page.streamLabel || stream,
+        objectKey: `pages/${slug}/index.html`,
+      },
+    };
+  });
+  const { chips, warnings } = resolveStreamChips(drafts.map(({ page, built }) => ({
+    stream: built.stream,
+    streamLabel: page.streamLabel,
+    streamChip: page.streamChip,
+  })));
+  for (const warning of warnings) console.warn(warning);
+  const resolved = drafts.map((draft) => ({
+    ...draft,
+    built: { ...draft.built, streamChip: chips.get(draft.built.stream) ?? draft.built.streamLabel } as BuiltPage,
+  }));
+  const streamDues = config.content.streamDues ?? {};
+
+  // 保持期限：retainDays を過ぎ、続ける理由（keep の日付・進行中フィルターのテーマ）が無いページは保管庫へ
+  const retainDays = config.content.retainDays;
+  const archivedSet = new Set<number>();
+  if (retainDays !== undefined) {
+    const shelfStreams = new Set(buildShelf(config.content.shelf ?? [], resolved.map((item) => item.built), now, streamDues)
+      .flatMap((entry) => (entry.stream ? [entry.stream] : [])));
+    const context = { retainDays, today: jstToday(now), now: now.getTime(), shelfStreams };
+    resolved.forEach((item, index) => {
+      if (keepReason({ updatedAt: item.built.updatedAt, keep: item.page.keep, stream: item.built.stream }, context) === null) {
+        archivedSet.add(index);
+      }
+    });
+  }
+
+  const pages: BuiltPage[] = [];
+  const archived: ArchivedPage[] = [];
+  resolved.forEach(({ page, sourceReal, built }, index) => {
+    if (archivedSet.has(index)) {
+      archived.push({
+        slug: built.slug,
+        title: built.title,
+        source: built.source,
+        updatedAt: built.updatedAt,
+        date: built.date,
+        repository: built.repository,
+        stream: built.stream,
+        streamLabel: built.streamLabel,
+        keep: page.keep ?? null,
+      });
+      return;
+    }
     const html = bundleHtml(sourceReal, roots, config.content.maximumAssetBytes, {
       siteName: config.content.siteName,
       title: page.title,
       imageUrl: ogImageUrl,
       cardType: config.content.ogCardType,
     });
-    const fallback = path.basename(source, path.extname(source));
-    let slug = slugify(page.slug || fallback);
-    if (used.has(slug)) slug = `${slug}-${createHash('sha256').update(sourceReal).digest('hex').slice(0, 6)}`;
-    used.add(slug);
-    const directory = path.join(contentRoot, 'pages', slug);
+    const directory = path.join(contentRoot, 'pages', built.slug);
     mkdirSync(directory, { recursive: true });
     writeFileSync(path.join(directory, 'index.html'), html);
-    const updatedAt = statSync(sourceReal).mtime.toISOString();
-    const repository = page.repository || defaultGroup(page);
-    const stream = page.stream || repository;
-    return {
-      slug,
-      title: page.title || extractTitle(html, fallback),
-      source: page.path,
-      updatedAt,
-      date: updatedAt,
-      repository,
-      stream,
-      streamLabel: page.streamLabel || stream,
-      objectKey: `pages/${slug}/index.html`,
-    };
+    pages.push(built);
   });
-  const { chips, warnings } = resolveStreamChips(config.content.pages.map((page, index) => ({
-    stream: drafts[index].stream,
-    streamLabel: page.streamLabel,
-    streamChip: page.streamChip,
-  })));
-  for (const warning of warnings) console.warn(warning);
-  const pages: BuiltPage[] = drafts.map((page) => ({
-    ...page,
-    streamChip: chips.get(page.stream) ?? page.streamLabel,
-  }));
-  const manifest = {
-    generatedAt: new Date().toISOString(),
+  archived.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+
+  const manifest: BuildManifest = {
+    generatedAt: now.toISOString(),
     internalSharing: config.content.allowedInternalCidrs.length > 0,
     maximumShareDays: config.content.maximumShareDays,
+    retainDays: retainDays ?? null,
     pages,
-    shelf: buildShelf(config.content.shelf ?? [], pages, new Date(), config.content.streamDues ?? {}),
-    streamDues: Object.fromEntries(Object.entries(config.content.streamDues ?? {})
-      .map(([key, dues]) => [key, liveDues(dues)] as const)
+    archived,
+    shelf: buildShelf(config.content.shelf ?? [], pages, now, streamDues),
+    streamDues: Object.fromEntries(Object.entries(streamDues)
+      .map(([key, dues]) => [key, liveDues(dues, now)] as const)
       .filter(([, dues]) => dues.length > 0)),
   };
   writeFileSync(path.join(buildRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);

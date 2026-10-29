@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { buildOnly, publish, share } from './publish.js';
+import { buildOnly, publish, revive, share } from './publish.js';
 import { initializeKeys, storePrivateKey } from './keys.js';
 import { addPageToConfig, loadConfig } from './config.js';
 import {
@@ -37,6 +37,7 @@ Usage:
   html-share publish [--config file]
   html-share share <slug> [--days 7]
   html-share page add <path> [--title title]
+  html-share page revive <slug> [--days 14] [--no-publish]
   html-share keys init [--overwrite]
   html-share keys store [--overwrite]
   html-share review pair <code> [--name name]
@@ -55,6 +56,17 @@ async function main(): Promise<void> {
 
   // page add is the command that creates the first content.pages entry, so it must
   // be able to run before the complete config passes normal publish validation.
+  if (command === 'page' && process.argv[3] === 'revive') {
+    const query = process.argv[4];
+    if (!query) usage();
+    const config = loadConfig(option('--config'));
+    const days = option('--days') === undefined ? undefined : Number(option('--days'));
+    const { page, keep } = revive(config, query, days);
+    // keep を書いた設定を読み直してから publish する
+    const published = flag('--no-publish') ? undefined : await publish(loadConfig(option('--config')));
+    console.log(JSON.stringify({ ok: true, revived: page.slug, title: page.title, keep, ...(published ? { published } : { next: 'html-share publish' }) }, null, 2));
+    return;
+  }
   if (command === 'page') {
     const action = process.argv[3];
     const pagePath = process.argv[4];
@@ -68,7 +80,12 @@ async function main(): Promise<void> {
 
   if (command === 'build') {
     const result = buildOnly(config);
-    console.log(JSON.stringify({ ok: true, pages: result.manifest.pages.length, buildRoot: result.buildRoot }, null, 2));
+    console.log(JSON.stringify({
+      ok: true,
+      pages: result.manifest.pages.length,
+      archived: result.manifest.archived.length,
+      buildRoot: result.buildRoot,
+    }, null, 2));
     return;
   }
   if (command === 'publish') {

@@ -77,7 +77,7 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(dashboard, /function isFarDue\(due\) \{\s*return Boolean\(due\) && due > jstDay\(30\);/, '期限が30日を超える項目は「ほか◯件」へ畳む');
   assert.match(dashboard, /if \(isFarDue\(item\.due\) && !shelfFarOpen && shelfFilter !== key\) continue;/, '畳むのは期限が先のものだけで、期限の無い項目と絞り込み中の項目は出す');
   assert.match(dashboard, /more\.classList\.add\('chip-fold'\)/, '「ほか◯件」のチップはカードの .more と別の名前にする');
-  assert.match(dashboard, /if \(showingTrash \|\| filterText\.trim\(\)\) return;/, '削除済みと検索中はチップを出さない');
+  assert.match(dashboard, /if \(showingTrash \|\| showingArchive \|\| filterText\.trim\(\)\) return;/, '削除済み・保管庫と検索中はチップを出さない');
   assert.match(dashboard, /body\.searching \.chips \{ display: none; \}/);
   assert.match(dashboard, /if \(open && shelfFilter !== null\) \{\s*shelfFilter = null;/, '検索を開いたら絞り込みを解除する');
   assert.match(dashboard, /@media \(max-width: 46rem\) \{\s*[^\n]*\n\s*\.chips \{ flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none;/, 'スマホ幅はチップを横スクロールにする');
@@ -285,4 +285,13 @@ test('does not throw when the page frame is on another origin', () => {
   // Pages are served from the content domain, so reading the frame's scroll position is blocked.
   const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
   assert.match(dashboard, /function watchFrameScroll\(\) \{[\s\S]{0,400}try \{\s*lastY = frameWindow\.scrollY;\s*\} catch \{/);
+});
+
+test('lists archived pages behind a toggle and asks the inbox to revive them', () => {
+  const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
+  assert.match(dashboard, /<button id="archive-toggle" type="button">/, '保管庫の入口は削除済みと並べて一覧の末尾に置く');
+  assert.match(dashboard, /archivedPages = \[\.\.\.\(data\.archived \?\? \[\]\)\]/, 'manifest.archived から保管庫を読む');
+  assert.match(dashboard, /function archiveRow\(page\)[\s\S]{0,400}document\.createElement\('div'\)/, '保管庫の行は開けないので a にしない');
+  assert.match(dashboard, /html-share page revive \$\{page\.slug\}/, '戻すコマンドを依頼文に入れる');
+  assert.match(dashboard, /fetch\('\/api\/owner\/reviews', \{[\s\S]{0,200}'x-amz-content-sha256': await sha256\(body\)/, '依頼の POST に本文のハッシュを付ける');
 });

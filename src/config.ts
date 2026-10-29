@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import path from 'node:path';
-import { parse, stringify } from 'yaml';
+import { isMap, isSeq, parse, parseDocument, stringify } from 'yaml';
 
 export interface PageConfig {
   path: string;
@@ -12,6 +12,8 @@ export interface PageConfig {
   streamLabel?: string;
   /** 進行中チップに出すテーマの短い名前。同じテーマのどれか1ページに書けばよい */
   streamChip?: string;
+  /** 見直し日（YYYY-MM-DD）。content.retainDays を過ぎても、この日までは配信を続ける */
+  keep?: string;
 }
 
 /**
@@ -60,6 +62,11 @@ export interface HtmlShareConfig {
     ownerLinkDays: number;
     maximumShareDays: number;
     maximumAssetBytes: number;
+    /**
+     * 最終更新からこの日数を過ぎたページを配信から外し、一覧の保管庫へ移す。
+     * 省略すると保管庫へは移さない（すべて配信を続ける）
+     */
+    retainDays?: number;
     allowedInternalCidrs: string[];
     /** リンクプレビュー（OGP）で名乗るアプリ名 */
     siteName: string;
@@ -264,11 +271,15 @@ export function loadConfig(file?: string): HtmlShareConfig {
           stream: typeof page.stream === 'string' ? page.stream.trim() : undefined,
           streamLabel: typeof page.streamLabel === 'string' ? page.streamLabel.trim() : undefined,
           streamChip: typeof page.streamChip === 'string' && page.streamChip.trim() ? page.streamChip.trim() : undefined,
+          keep: isoDate(page.keep, `content.pages[${index}].keep`),
         };
       }),
       ownerLinkDays: positiveInteger(content.ownerLinkDays, 30, 'content.ownerLinkDays'),
       maximumShareDays: positiveInteger(content.maximumShareDays, 30, 'content.maximumShareDays'),
       maximumAssetBytes: positiveInteger(content.maximumAssetBytes, 10 * 1024 * 1024, 'content.maximumAssetBytes'),
+      retainDays: content.retainDays === undefined || content.retainDays === null
+        ? undefined
+        : positiveInteger(content.retainDays, 30, 'content.retainDays'),
       allowedInternalCidrs,
       siteName: typeof content.siteName === 'string' && content.siteName.trim()
         ? content.siteName.trim()
@@ -306,6 +317,28 @@ export function addPageToConfig(file: string | undefined, pagePath: string, titl
   raw.content.pages.push(title ? { path: storedPath, title } : { path: storedPath });
   writeFileSync(configFile, stringify(raw, { lineWidth: 120 }));
   return true;
+}
+
+/**
+ * 設定ファイルの content.pages のうち path が一致する1件に keep（見直し日）を書く。
+ * コメントと並びを残すため、文書として読んで該当の値だけ差し替える
+ */
+export function setPageKeep(file: string | undefined, pagePath: string, keep: string): void {
+  const configFile = configPath(file);
+  const document = parseDocument(readFileSync(configFile, 'utf8'));
+  const pages = document.getIn(['content', 'pages']);
+  if (!isSeq(pages)) throw new Error('content.pages must be an array');
+  const index = pages.items.findIndex((item) => {
+    const value = isMap(item) ? item.get('path') : (item as { value?: unknown })?.value;
+    return value === pagePath;
+  });
+  if (index < 0) throw new Error(`content.pages has no entry for ${pagePath}`);
+  if (!isMap(pages.items[index])) {
+    // 文字列だけで書いたページは、path を持つ形へ書き直してから keep を足す
+    pages.items[index] = document.createNode({ path: pagePath });
+  }
+  document.setIn(['content', 'pages', index, 'keep'], keep);
+  writeFileSync(configFile, document.toString({ lineWidth: 120 }));
 }
 
 export function validatedRoots(config: HtmlShareConfig): string[] {

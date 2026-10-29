@@ -8,10 +8,11 @@ import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { BuildManifest, BuiltPage } from './bundle.js';
-import { buildSite } from './bundle.js';
+import type { ArchivedPage, BuildManifest, BuiltPage } from './bundle.js';
+import { addDays, buildSite, jstToday } from './bundle.js';
 import type { HtmlShareConfig, StackOutputs } from './config.js';
-import { loadOutputs, resolveFromConfig } from './config.js';
+import { loadOutputs, resolveFromConfig, setPageKeep } from './config.js';
+import { REVIVE_DAYS } from './retention.js';
 import { signUrl } from './sign.js';
 
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -105,10 +106,14 @@ export function assertNotShrinking(remoteCount: number, localCount: number, allo
   }
 }
 
-async function syncTree(client: S3Client, bucket: string, root: string): Promise<void> {
+/**
+ * expectedRemovals は、この build で意図して外したファイルの数（保管庫へ移したページ）。
+ * 保持期限で一度に多くのページが外れても、設定の崩れと取り違えて止めないために数へ足す
+ */
+async function syncTree(client: S3Client, bucket: string, root: string, expectedRemovals = 0): Promise<void> {
   const remote = await remoteObjects(client, bucket);
   const local = files(root);
-  assertNotShrinking(remote.size, local.length);
+  assertNotShrinking(remote.size, local.length + expectedRemovals);
   const kept = new Set<string>();
   for (const relative of local) {
     const file = path.join(root, relative);
@@ -209,6 +214,9 @@ function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: H
       }),
     })),
     shelf: manifest.shelf,
+    retainDays: manifest.retainDays,
+    // 保管庫のページは配信先に無いので、署名付きURLを作らない
+    archived: manifest.archived,
   };
 }
 
@@ -229,7 +237,7 @@ export function buildOnly(config: HtmlShareConfig): { buildRoot: string; manifes
   }
 }
 
-export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: string; pages: number }> {
+export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: string; pages: number; archived: number }> {
   const outputsFile = path.resolve(config.baseDir, '.html-share', 'outputs.json');
   const outputs = loadOutputs(outputsFile);
   // build と送信の両方を1つのロックで囲む。送信も .html-share/build を読む区間なので、
@@ -239,9 +247,13 @@ export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: st
     const { buildRoot, manifest } = buildUnlocked(config);
     copyConsole(buildRoot, ownerManifest(manifest, outputs, config));
     const client = new S3Client({ region: config.aws.region });
-    await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'));
+    await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'), manifest.archived.length);
     await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
-    return { consoleUrl: `${outputs.ConsoleUrl}/app/index.html`, pages: manifest.pages.length };
+    return {
+      consoleUrl: `${outputs.ConsoleUrl}/app/index.html`,
+      pages: manifest.pages.length,
+      archived: manifest.archived.length,
+    };
   } finally {
     release();
   }
@@ -255,6 +267,9 @@ export function share(config: HtmlShareConfig, query: string, days: number): str
   const manifest = JSON.parse(readFileSync(path.join(buildRoot, 'manifest.json'), 'utf8')) as BuildManifest;
   const outputs = loadOutputs(path.resolve(config.baseDir, '.html-share', 'outputs.json'));
   const matches = matchingPages(manifest.pages, query);
+  if (matches.length === 0 && matchingPages(manifest.archived ?? [], query).length > 0) {
+    throw new Error(`${query} is in the archive and is not served. Run \`html-share page revive ${query}\` first.`);
+  }
   if (matches.length !== 1) throw new Error(matches.length ? `Multiple pages match ${query}: ${matches.map((p) => p.slug).join(', ')}` : `Page not found: ${query}`);
   return signUrl({
     url: `${outputs.ContentUrl}/${matches[0].objectKey}`,
@@ -264,8 +279,33 @@ export function share(config: HtmlShareConfig, query: string, days: number): str
   });
 }
 
-export function matchingPages(pages: BuiltPage[], query: string): BuiltPage[] {
+export function matchingPages<T extends Pick<BuiltPage, 'slug' | 'title'>>(pages: T[], query: string): T[] {
   const exact = pages.filter((page) => page.slug === query);
   if (exact.length > 0) return exact;
   return pages.filter((page) => page.slug.includes(query) || page.title.includes(query));
+}
+
+/**
+ * 保管庫のページを配信へ戻す。設定ファイルのそのページに keep（今日から days 日後）を書く。
+ * 見直し日を過ぎてもまだ要るなら、もう一度 revive するか keep を延ばす。
+ * 保管庫の一覧は直前の build の manifest から引く（build していなければ先に build する）
+ */
+export function revive(config: HtmlShareConfig, query: string, days = REVIVE_DAYS, now = new Date()): { page: ArchivedPage; keep: string } {
+  if (!Number.isInteger(days) || days < 1) throw new Error('--days must be a positive integer');
+  const manifestFile = path.resolve(config.baseDir, '.html-share', 'build', 'manifest.json');
+  let manifest: BuildManifest;
+  try {
+    manifest = JSON.parse(readFileSync(manifestFile, 'utf8')) as BuildManifest;
+  } catch {
+    throw new Error(`No build found at ${manifestFile}. Run \`html-share build\` first.`);
+  }
+  const matches = matchingPages(manifest.archived ?? [], query);
+  if (matches.length !== 1) {
+    throw new Error(matches.length
+      ? `Multiple archived pages match ${query}: ${matches.map((page) => page.slug).join(', ')}`
+      : `No archived page matches ${query}`);
+  }
+  const keep = addDays(jstToday(now), days);
+  setPageKeep(config.configFile, matches[0].source, keep);
+  return { page: matches[0], keep };
 }

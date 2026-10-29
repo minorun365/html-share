@@ -360,7 +360,7 @@ body.searching .chips { display: none; }
 
 /* 削除済みは常設の入口を持たせず、一覧の末尾へ控えめに置く */
 .trash-bar { margin-top: 2.25rem; display: flex; justify-content: center; }
-#trash-toggle {
+#trash-toggle, #archive-toggle {
   min-height: 2.1rem; padding: 0 .9rem;
   display: none; align-items: center; gap: .4rem;
   border: 1px solid var(--line); border-radius: 999px;
@@ -368,8 +368,12 @@ body.searching .chips { display: none; }
   font: inherit; font-size: .72rem; cursor: pointer;
   transition: color .16s ease, border-color .16s ease;
 }
-#trash-toggle.on { display: inline-flex; }
-#trash-toggle:hover { color: var(--ink); border-color: var(--blue-line); }
+#trash-toggle.on, #archive-toggle.on { display: inline-flex; }
+#trash-toggle:hover, #archive-toggle:hover { color: var(--ink); border-color: var(--blue-line); }
+.trash-bar { gap: .5rem; flex-wrap: wrap; }
+/* 保管庫の行。配信から外したページなので開けない。「戻す」でインボックスへ依頼を置く */
+.archive-row .t { color: var(--ink-faint); }
+.archive-row .restore[disabled] { opacity: .5; cursor: default; }
 
 /* ── ページ表示中の操作。左にホーム、右にメニューの2つだけ ───────── */
 #home-btn, #page-actions {
@@ -614,6 +618,7 @@ body.page-controls-hidden #page-actions {
         <div id="tiles"></div>
         <div class="trash-bar">
           <button id="trash-toggle" type="button"><span id="trash-label"></span></button>
+          <button id="archive-toggle" type="button"><span id="archive-label"></span></button>
         </div>
       </div>
     </div>
@@ -667,6 +672,7 @@ body.page-controls-hidden #page-actions {
   const pageStar = $('page-star'), pageUnread = $('page-unread'), pageShare = $('page-share'), pageDelete = $('page-delete'), pageShareIssue = $('page-share-issue');
   let shareToastTimer = 0;
   const trashToggle = $('trash-toggle'), trashLabel = $('trash-label');
+  const archiveToggle = $('archive-toggle'), archiveLabel = $('archive-label');
   const STAR_KEY = 'mb_starred_pages';
   const STREAM_STAR_PREFIX = '@stream:';
   const HIDDEN_KEY = 'mb_hidden_pages';
@@ -689,6 +695,8 @@ body.page-controls-hidden #page-actions {
   let readMarks = {};
   let knowsReadMarks = false;
   let showingTrash = false;
+  // 保管庫：保持期限（content.retainDays）を過ぎて配信から外したページ（manifest.archived）。タイトルだけを持つ
+  let archivedPages = [], showingArchive = false;
   let filterText = '';
   let preferenceSaveTimer = null;
   // テーマ内で最初に見せる件数と、「他N件を表示」で開いたテーマのキー
@@ -898,10 +906,67 @@ body.page-controls-hidden #page-actions {
   }
 
   function updateTrashToggle() {
-    trashToggle.classList.toggle('on', hiddenSources.size > 0);
+    trashToggle.classList.toggle('on', hiddenSources.size > 0 && !showingArchive);
     trashLabel.textContent = showingTrash
       ? '‹ 一覧へ戻る'
       : `削除済み ${hiddenSources.size}件 ›`;
+    archiveToggle.classList.toggle('on', archivedPages.length > 0 && !showingTrash);
+    archiveLabel.textContent = showingArchive
+      ? '‹ 一覧へ戻る'
+      : `保管庫 ${archivedPages.length}件 ›`;
+  }
+
+  /** 保管庫の1行。開けないので、戻す依頼をインボックスへ置き、手元の html-share page revive で戻す */
+  function archiveRow(page) {
+    const wrap = document.createElement('div');
+    wrap.className = 'row-wrap';
+    const row = document.createElement('div');
+    row.className = 'row off archive-row';
+    row.title = page.source;
+    const dot = document.createElement('span');
+    dot.className = 'dot';
+    const title = document.createElement('div');
+    title.className = 't';
+    title.textContent = page.title;
+    const when = document.createElement('time');
+    when.dateTime = page.date;
+    when.textContent = shortTime(page.date);
+    when.title = `更新 ${fmtDateTime(page.date)}`;
+    row.append(dot, title, when);
+    const restore = document.createElement('button');
+    restore.className = 'restore';
+    restore.type = 'button';
+    restore.textContent = '戻す';
+    restore.title = `html-share page revive ${page.slug}`;
+    restore.addEventListener('click', async () => {
+      if (!CAN_SYNC) {
+        alert(`手元で次を実行すると配信に戻ります。\n\nhtml-share page revive ${page.slug}`);
+        return;
+      }
+      if (!confirm(`「${page.title}」を保管庫から戻すよう、インボックスへ依頼します。`)) return;
+      restore.disabled = true;
+      try {
+        const body = JSON.stringify({
+          title: `保管庫から戻す｜${page.title}`.slice(0, 120),
+          question: `HTML共有くんの保管庫から戻してください。\n\nhtml-share page revive ${page.slug}\n\nタイトル：${page.title}\n元ファイル：${page.source}`,
+        });
+        // POST の本文は CloudFront の署名検証のためにハッシュを付ける（preferencesApi と同じ）
+        const response = await fetch('/api/owner/reviews', {
+          method: 'POST',
+          cache: 'no-store',
+          headers: { 'content-type': 'application/json', 'x-amz-content-sha256': await sha256(body) },
+          body,
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        restore.textContent = '依頼済み';
+        refreshInboxDot();
+      } catch (error) {
+        restore.disabled = false;
+        alert(`インボックスへ置けませんでした（${error.message}）。手元で html-share page revive ${page.slug} を実行してください。`);
+      }
+    });
+    wrap.append(row, restore);
+    return wrap;
   }
 
   async function savePreferencesNow() {
@@ -1163,9 +1228,11 @@ body.page-controls-hidden #page-actions {
 
   /** いま並べる対象。削除済み表示か通常かを決めたうえで、検索語で絞る */
   function visiblePages() {
-    const base = showingTrash
-      ? allPages.filter((page) => hiddenSources.has(page.source))
-      : pages;
+    const base = showingArchive
+      ? archivedPages
+      : showingTrash
+        ? allPages.filter((page) => hiddenSources.has(page.source))
+        : pages;
     const needle = filterText.trim().toLowerCase();
     if (!needle) return base;
     return base.filter((page) => `${page.title} ${pageRepository(page)} ${page.source}`
@@ -1334,8 +1401,8 @@ body.page-controls-hidden #page-actions {
   function renderChips() {
     const bar = $('chips');
     bar.replaceChildren();
-    // 削除済みの表示と検索中は絞り込みを使わない
-    if (showingTrash || filterText.trim()) return;
+    // 削除済み・保管庫の表示と検索中は絞り込みを使わない
+    if (showingTrash || showingArchive || filterText.trim()) return;
     const select = (key) => () => { shelfFilter = shelfFilter === key ? null : key; renderHome(); };
     bar.append(chip('すべて', { on: shelfFilter === null, onClick: () => { shelfFilter = null; renderHome(); } }));
     // チップは必ず絞り込みにする。押しただけで外部のページへ飛ばさない。
@@ -1368,7 +1435,7 @@ body.page-controls-hidden #page-actions {
   /** 絞り込み中の1行。何で絞っているかと、締切・メモ・件数を本文の先頭に出す */
   function renderFilterNote(count) {
     const note = $('filter-note');
-    if (!shelfFilter || showingTrash) { note.hidden = true; return; }
+    if (!shelfFilter || showingTrash || showingArchive) { note.hidden = true; return; }
     const item = liveShelf().find((candidate) => shelfKey(candidate) === shelfFilter);
     note.hidden = false;
     note.replaceChildren();
@@ -1394,7 +1461,7 @@ body.page-controls-hidden #page-actions {
     tilesEl.replaceChildren();
     // チップで選んだ絞り込みは、外されたり検索を始めたり進行中フィルターから消えたりしたら解除する
     const shelfStreams = new Set(liveShelf().map(shelfKey));
-    if (shelfFilter && (showingTrash || filterText.trim() || !shelfStreams.has(shelfFilter))) shelfFilter = null;
+    if (shelfFilter && (showingTrash || showingArchive || filterText.trim() || !shelfStreams.has(shelfFilter))) shelfFilter = null;
     const items = shelfFilter
       ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
       : visiblePages();
@@ -1404,10 +1471,36 @@ body.page-controls-hidden #page-actions {
     if (items.length === 0) {
       const none = document.createElement('div');
       none.className = 'empty';
-      none.textContent = showingTrash
+      none.textContent = showingArchive
+        ? '保管庫のページはありません'
+        : showingTrash
         ? '削除済みのページはありません'
         : (filterText.trim() ? `「${filterText.trim()}」に当てはまるページはありません` : 'ページがありません');
       tilesEl.append(none);
+      return;
+    }
+
+    if (showingArchive) {
+      const wrap = document.createElement('div');
+      wrap.className = 'dgroup';
+      const head = document.createElement('div');
+      head.className = 'dhead';
+      const title = document.createElement('span');
+      title.textContent = meta?.retainDays ? `保管庫（更新から${meta.retainDays}日で配信を止めたページ）` : '保管庫';
+      const count = document.createElement('span');
+      count.className = 'dcount';
+      count.textContent = `${items.length}件`;
+      head.append(title, count);
+      const body = document.createElement('div');
+      body.className = 'dbody';
+      for (const page of items) {
+        const solo = document.createElement('section');
+        solo.className = 'solo';
+        solo.append(archiveRow(page));
+        body.append(solo);
+      }
+      wrap.append(head, body);
+      tilesEl.append(wrap);
       return;
     }
 
@@ -1727,6 +1820,11 @@ body.page-controls-hidden #page-actions {
     updateTrashToggle();
     renderHome();
   });
+  archiveToggle.addEventListener('click', () => {
+    showingArchive = !showingArchive;
+    updateTrashToggle();
+    renderHome();
+  });
   frame.addEventListener('load', watchFrameScroll);
   pagePopoverDismiss.addEventListener('pointerdown', closePagePopovers);
   document.addEventListener('pointerdown', (event) => {
@@ -1754,6 +1852,7 @@ body.page-controls-hidden #page-actions {
       meta = data;
       configureShareOptions(data);
       allPages = data.pages ?? [];
+      archivedPages = [...(data.archived ?? [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
       await loadPreferences();
       select(location.hash.replace(/^#\//, ''));
       refreshInboxDot();
