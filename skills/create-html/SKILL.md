@@ -68,6 +68,8 @@ Count figures before delivery. A page with no `<svg>` or `<img>` should be recon
 - When labels in a figure overlap, keep the figure's form and move only the overlapping labels. Put labels of narrow bands outside the band and draw them after any shading; move labels that sit on a line to the side the line does not pass. Do not put dark text on a dark arrow, line, or bar; move the text off the shape or make it white. Switching to another chart type throws away what the reader already understood. Then run the label checks in [render-checks.md](references/render-checks.md) and look at the figure.
 - For architecture and data flow, a figure is mandatory, one figure per point. Each diagram needs a boundary line for who owns what, a one-line role under every product name, a label on every arrow saying what flows, and, for readers used to another platform, the equivalent they know. Do not substitute a table, ASCII art, or prose.
 - Use inline SVG with a `viewBox`, `<text>` for labels, one shared `<marker>` for arrows, and only the page's color tokens. Keep every shape inside the `viewBox`; the checker verifies this.
+- For a schedule that spans weeks, use the monthly calendar in [layout-patterns.md](references/layout-patterns.md), not a wide SVG timeline. A 900 px wide SVG shrinks to about 340 px on a phone, and 12 px labels end up around 5 px. A plain vertical list is not a substitute either: it keeps the order but hides weeks and weekdays.
+- Do not put a `linearGradient` on the stroke of a perfectly horizontal or vertical `<line>`: with the default `objectBoundingBox` units the gradient cannot be computed for a zero-height box, and the line disappears. Add `gradientUnits="userSpaceOnUse"` or draw the line as a thin `<rect>`.
 
 ## Required checks
 
