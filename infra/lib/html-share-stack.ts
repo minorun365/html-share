@@ -11,6 +11,7 @@ import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as customResources from 'aws-cdk-lib/custom-resources';
 import * as dynamodb from 'aws-cdk-lib/aws-dynamodb';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -156,7 +157,9 @@ export class HtmlShareStack extends Stack {
       accountRecovery: cognito.AccountRecovery.NONE,
       mfa: cognito.Mfa.OFF,
       featurePlan: cognito.FeaturePlan.ESSENTIALS,
-      signInPolicy: { allowedFirstAuthFactors: { password: true, emailOtp: true } },
+      // Cognito はパスキーを有効にするとき PASSWORD も有効であることを求める。
+      // 本人ユーザーはパスワードなしで作るので、実際に使うのはパスキーとメールのワンタイムコードだけ。
+      signInPolicy: { allowedFirstAuthFactors: { password: true, emailOtp: true, passkey: true } },
       deletionProtection: true,
       removalPolicy: RemovalPolicy.RETAIN,
     });
@@ -192,10 +195,48 @@ export class HtmlShareStack extends Stack {
       clientId: userPoolClient.userPoolClientId,
       useCognitoProvidedValues: true,
     });
-    userPool.addDomain('OwnerDomain', {
+    const ownerDomain = userPool.addDomain('OwnerDomain', {
       cognitoDomain: { domainPrefix: props.cognitoDomainPrefix },
       managedLoginVersion: cognito.ManagedLoginVersion.NEWER_MANAGED_LOGIN,
     });
+
+    // パスキーの RP ID は Cognito のログイン画面のドメインにする。一覧側の名前を替えても
+    // 登録済みのパスキーがそのまま使える。ユーザープールの作成と同時には、まだ無いドメインを
+    // RP ID に指定できないので、ドメインができてから設定APIを呼ぶ。
+    const passkeyParameters = {
+      UserPoolId: userPool.userPoolId,
+      WebAuthnConfiguration: {
+        RelyingPartyId: `${props.cognitoDomainPrefix}.auth.${this.region}.amazoncognito.com`,
+        UserVerification: 'required',
+        FactorConfiguration: 'SINGLE_FACTOR',
+      },
+    };
+    const passkeyConfig = new customResources.AwsCustomResource(this, 'PasskeyConfiguration', {
+      onCreate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'setUserPoolMfaConfig',
+        parameters: passkeyParameters,
+        physicalResourceId: customResources.PhysicalResourceId.of('html-share-passkey-config'),
+      },
+      onUpdate: {
+        service: 'CognitoIdentityServiceProvider',
+        action: 'setUserPoolMfaConfig',
+        parameters: passkeyParameters,
+        physicalResourceId: customResources.PhysicalResourceId.of('html-share-passkey-config'),
+      },
+      policy: customResources.AwsCustomResourcePolicy.fromStatements([
+        new iam.PolicyStatement({
+          actions: ['cognito-idp:SetUserPoolMfaConfig'],
+          resources: [userPool.userPoolArn],
+        }),
+      ]),
+      installLatestAwsSdk: false,
+      logGroup: new logs.LogGroup(this, 'PasskeyConfigLogs', {
+        retention: logs.RetentionDays.ONE_WEEK,
+        removalPolicy: RemovalPolicy.DESTROY,
+      }),
+    });
+    passkeyConfig.node.addDependency(ownerDomain);
 
     const privateKeyParameter = ssm.StringParameter.fromSecureStringParameterAttributes(
       this,
@@ -273,6 +314,24 @@ export class HtmlShareStack extends Stack {
       responseHeadersPolicy: consoleHeaders,
       compress: true,
     };
+    // 一覧側の /pages/<slug>/… は、一覧アプリでそのページを開く URL（/app/index.html#/<slug>）へ送る。
+    // 本文と同じ形のURLを一覧側に貼ってしまったときや、別の配信から移したページの古いリンクを生かすため
+    const pageLinkFunction = new cloudfront.Function(this, 'PageLinkFunction', {
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+      code: cloudfront.FunctionCode.fromInline(`function handler(event) {
+  var request = event.request;
+  var match = request.uri.match(/^\\/pages\\/([a-z0-9-]+)(\\/|$)/);
+  if (!match) return request;
+  return {
+    statusCode: 302,
+    statusDescription: 'Found',
+    headers: {
+      location: { value: '/app/index.html#/' + match[1] },
+      'cache-control': { value: 'no-store' },
+    },
+  };
+}`),
+    });
     const consoleDistribution = new cloudfront.Distribution(this, 'ConsoleDistribution', {
       domainNames: [props.consoleDomain],
       certificate,
@@ -281,6 +340,7 @@ export class HtmlShareStack extends Stack {
         ...common,
         origin: consoleS3Origin,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
+        functionAssociations: [{ function: pageLinkFunction, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
       },
       additionalBehaviors: {
         'app/*': {
