@@ -45,6 +45,10 @@ content:
   # URLを直接叩いて 200 と Content-Type: image/* が返ることを確かめてください。
   # false にすると画像なしのカードになります（Teams は og:image が無いとカードを出しません）。
   # ogImageUrl: https://example.com/og-card.png
+  # iconsDir はアイコン（favicon.ico・icon-192.png など、web/icons/ と同じ名前のPNG）を
+  # 差し替えるフォルダ。この設定ファイルからの相対パスです。サイトを複数立てて、
+  # アイコンの色で見分けたいときに使います。
+  # iconsDir: icons
   # ogCardType はカードの大きさ。省略すると summary（各媒体でいちばん小さいカード）です。
   # summary_large_image は 1200x630 前後の横長画像を前提にした見せ方で、
   # 正方形やロゴを渡すと引き伸ばされます。

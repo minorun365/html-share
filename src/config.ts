@@ -77,6 +77,11 @@ export interface HtmlShareConfig {
     ogImageUrl?: string | false;
     /** カードの大きさ。省略すると summary（各媒体でいちばん小さいカード） */
     ogCardType?: 'summary' | 'summary_large_image';
+    /**
+     * 同梱のアイコン（web/icons/ と web/favicon.ico）を差し替えるフォルダ。設定ファイルからの相対パス。
+     * 同じ名前のファイルだけを上書きする。複数のサイトをアイコンの色で見分けたいときに使う
+     */
+    iconsDir?: string;
     /** 進行中フィルター。省略すると進行中フィルターを出さない */
     shelf?: ShelfItemConfig[];
     /**
@@ -293,6 +298,9 @@ export function loadConfig(file?: string): HtmlShareConfig {
         : content.ogCardType === undefined || content.ogCardType === null || content.ogCardType === 'summary'
           ? undefined
           : (() => { throw new Error('content.ogCardType must be "summary" or "summary_large_image"'); })(),
+      iconsDir: content.iconsDir === undefined || content.iconsDir === null
+        ? undefined
+        : text(content.iconsDir, 'content.iconsDir'),
       shelf: shelfItems(content.shelf),
       streamDues: streamDuesConfig(content.streamDues),
     },

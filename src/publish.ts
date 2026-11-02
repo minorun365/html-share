@@ -35,7 +35,7 @@ function files(root: string, current = root): string[] {
   });
 }
 
-function copyConsole(buildRoot: string, manifest: object): void {
+function copyConsole(buildRoot: string, manifest: object, config: HtmlShareConfig): void {
   const consoleRoot = path.join(buildRoot, 'console');
   mkdirSync(consoleRoot, { recursive: true });
   for (const relative of files(path.join(PACKAGE_ROOT, 'web'))) {
@@ -43,6 +43,15 @@ function copyConsole(buildRoot: string, manifest: object): void {
     const target = path.join(consoleRoot, relative);
     mkdirSync(path.dirname(target), { recursive: true });
     writeFileSync(target, readFileSync(source));
+  }
+  // iconsDir の中身は、同じ名前の同梱アイコンを上書きする（favicon.ico は直下、それ以外は icons/ へ）
+  if (config.content.iconsDir) {
+    const iconsDir = resolveFromConfig(config, config.content.iconsDir);
+    for (const name of readdirSync(iconsDir)) {
+      if (!/\.(png|ico)$/i.test(name)) continue;
+      const target = name === 'favicon.ico' ? path.join(consoleRoot, name) : path.join(consoleRoot, 'icons', name);
+      writeFileSync(target, readFileSync(path.join(iconsDir, name)));
+    }
   }
   mkdirSync(path.join(consoleRoot, 'app'), { recursive: true });
   writeFileSync(path.join(consoleRoot, 'app', 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
@@ -224,7 +233,7 @@ function ownerManifest(manifest: BuildManifest, outputs: StackOutputs, config: H
 function buildUnlocked(config: HtmlShareConfig): { buildRoot: string; manifest: BuildManifest } {
   const buildRoot = path.resolve(config.baseDir, '.html-share', 'build');
   const manifest = buildSite(config, buildRoot);
-  copyConsole(buildRoot, { ...manifest, pages: manifest.pages.map((page) => ({ ...page, href: null })) });
+  copyConsole(buildRoot, { ...manifest, pages: manifest.pages.map((page) => ({ ...page, href: null })) }, config);
   return { buildRoot, manifest };
 }
 
@@ -245,7 +254,7 @@ export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: st
   const release = acquirePublishLock(config);
   try {
     const { buildRoot, manifest } = buildUnlocked(config);
-    copyConsole(buildRoot, ownerManifest(manifest, outputs, config));
+    copyConsole(buildRoot, ownerManifest(manifest, outputs, config), config);
     const client = new S3Client({ region: config.aws.region });
     await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'), manifest.archived.length);
     await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
