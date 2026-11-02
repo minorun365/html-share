@@ -31,6 +31,8 @@ h1 span { display: inline-block; white-space: nowrap; }
 .button { display: inline-flex; min-height: 3rem; align-items: center; padding: .75rem 1.2rem; border-radius: .75rem; background: var(--blue); color: white; font-weight: 700; text-decoration: none; box-shadow: 0 10px 28px rgb(9 105 218 / 22%); }
 .button:hover { background: var(--blue-dark); }
 .privacy { max-width: 34rem; margin: 1rem 0 0; color: var(--muted); font-size: .85rem; line-height: 1.65; text-wrap: balance; }
+.passkey { margin: .9rem 0 0; font-size: .9rem; }
+.passkey a { color: var(--blue); font-weight: 600; }
 
 @media (max-width: 440px) {
   h1 { font-size: 2rem; }

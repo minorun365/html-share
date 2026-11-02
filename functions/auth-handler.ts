@@ -93,10 +93,12 @@ function cognitoUrl(pathname: string): URL {
   return new URL(pathname, required('COGNITO_ORIGIN'));
 }
 
-async function login(): Promise<any> {
+// 管理者が作った本人ユーザーには、Cognito がログイン後にパスキーの登録を勧めない。
+// /auth/passkey は Cognito の登録ページ（/passkeys/add）へ同じ引数で送り、登録後はふつうのログインと同じ戻り口へ帰す。
+async function login(cognitoPath = '/oauth2/authorize'): Promise<any> {
   const key = await privateKey();
   const verifier = randomBytes(48).toString('base64url');
-  const authorize = cognitoUrl('/oauth2/authorize');
+  const authorize = cognitoUrl(cognitoPath);
   authorize.search = new URLSearchParams({
     client_id: required('COGNITO_CLIENT_ID'),
     code_challenge: createHash('sha256').update(verifier).digest('base64url'),
@@ -184,6 +186,7 @@ export async function handler(event: any): Promise<any> {
   try {
     const pathname = event.rawPath ?? event.requestContext?.http?.path ?? '';
     if (pathname === '/auth/login') return await login();
+    if (pathname === '/auth/passkey') return await login('/passkeys/add');
     if (pathname === '/auth/callback') return await callback(event);
     if (pathname === '/auth/logout') return logout();
     return failure(404, 'Not found.');
