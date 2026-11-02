@@ -51,6 +51,9 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(review, /function renderTargetOptions/);
   assert.match(review, /JSON\.stringify\(\{ question: text, target \}\)/);
   assert.match(review, /targetField\.value = '';/);
+  assert.match(review, /function measureClamps/, '長いカードは実寸で畳む');
+  assert.match(review, /\.body\.clamped/);
+  assert.match(review, /function copyText/, 'カード本文のコピーボタン');
   assert.match(dashboard, /id="review-dot"/);
   assert.match(dashboard, /function refreshInboxDot/);
   assert.match(dashboard, /\/api\/owner\/reviews/);

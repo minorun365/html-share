@@ -65,7 +65,18 @@ Use this for any difference between two versions: a revision, an old and new edi
 
 ## Review checklist
 
-For pages where the reader works through items in order, add a "reviewed" checkbox to each card's body (not its band), gray the card out when checked (`opacity: .4; filter: grayscale(1)`), and keep the state in `localStorage` under a page-specific key with stable `data-id`s. The checkbox only tracks reading position; the user's feedback in chat is what decides each item.
+For pages where the reader works through items in order, add a "reviewed" checkbox to each card's body (not its band), gray the card out when checked (`opacity: .4; filter: grayscale(1)`), and keep the state in `localStorage` under a page-specific key with stable `data-id`s. The checkbox only tracks reading position; collecting answers is the job of the next section.
+
+## Collecting answers on many items
+
+When a page asks the reader to accept or reject three or more items (suggested edits, fixes, open questions), let them answer on the page instead of in chat. Rewriting a dozen judgments as a chat message puts the whole summarizing job on the reader.
+
+- Give every item a choice and a comment field, save the answers in `localStorage` under a page-specific key, and put a "copy all answers" button that produces one block the reader pastes into chat once.
+- Make the choices match the proposals one to one. An item with two proposed versions gets "apply version 1 / apply version 2 / skip"; an item with one proposal gets "apply / change it / skip". A generic "accept / skip / hold" forces the reader back into writing comments to say which version.
+- Keep the comment field on every item and usable without a choice. Let a second click on the selected option clear it, which plain radio buttons cannot do. Copy only the items that have a choice or a comment.
+- Put the copy button at the end of the page, where the reader finishes, not at the top.
+- Show fewer items. Include only proposals you are confident in; a long list with one accepted item wastes the reader's time more than a short one.
+- When the reader answers only some items in chat, treat what they said as the answer and follow their phrasing for the rest ("everything else as proposed" or "nothing else").
 
 ## Pages presented while talking
 

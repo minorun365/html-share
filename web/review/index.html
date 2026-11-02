@@ -135,42 +135,49 @@ main {
 /* 見出しは一覧の日付の区切り（今日 ──── 件数）と同じ作り。色の付いた札にしない */
 .section-head {
   display: flex; align-items: center; gap: .75rem;
-  margin: .35rem 0 .8rem; color: var(--blue); font-size: .78rem; font-weight: 700; letter-spacing: .04em;
+  margin: .5rem 0 .85rem; color: var(--blue-deep); font-size: .82rem; font-weight: 700; letter-spacing: .05em;
 }
 .section-head::after { content: ""; order: 2; flex: 1; height: 1px; background: var(--blue-line); }
 .section-head.later { margin-top: 2.2rem; }
-.count { order: 3; color: var(--mut); font-size: .74rem; font-weight: 600; letter-spacing: 0; }
-.compose {
-  margin: 0 0 .9rem; padding: .9rem;
-  border: 1px solid rgba(14, 13, 106, .06); border-radius: 1rem;
-  background: var(--white); box-shadow: 0 1px 2px rgba(26, 26, 31, .03), 0 10px 26px rgba(14, 13, 106, .055);
+.count {
+  order: 3; padding: .12rem .55rem; border-radius: 999px;
+  color: var(--sub); background: var(--white); border: 1px solid var(--line);
+  font-size: .7rem; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums;
 }
+.compose {
+  margin: 0 0 1.1rem; padding: .85rem .95rem;
+  border: 1px solid rgba(14, 13, 106, .07); border-radius: 1.1rem;
+  background: var(--white); box-shadow: 0 1px 2px rgba(26, 26, 31, .04), 0 6px 18px rgba(14, 13, 106, .045);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.compose:focus-within { border-color: rgba(10, 160, 220, .55); box-shadow: 0 0 0 4px rgba(10, 160, 220, .12), 0 10px 26px rgba(14, 13, 106, .07); }
 .compose textarea {
   display: block; width: 100%; min-height: 3.6rem; resize: vertical;
-  border: 1px solid var(--line); border-radius: .65rem; padding: .6rem .7rem;
+  border: 0; border-radius: .5rem; padding: .2rem .15rem;
   /* font-size は継承任せにせず明示する。app/index.html は body が 15px なので、
      同じ書き方をあちらへ移すと 15px になり iOS Safari が拡大する */
   color: var(--ink); background: var(--white); font: inherit; font-size: 16px; line-height: 1.6;
 }
-.compose textarea:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
+.compose textarea:focus { outline: none; }
+.compose textarea::placeholder, .compose-target::placeholder { color: #9a9aa3; }
 /* プロジェクト名は任意。固定の選択肢を持たず、過去に打った値を候補に出すだけなので、
    案件が増えても手入れが要らない。自由入力もできるプルダウンとして、入力欄＋▼＋候補リストを
    自前で持つ（datalist はiOS Safariだと▼が出ず、候補があること自体に気づけない） */
-.compose-target-wrap { position: relative; margin-top: .5rem; }
+.compose-target-wrap { position: relative; margin-top: .6rem; padding-top: .6rem; border-top: 1px solid var(--line); }
 /* ⚠️ font-size は 16px（1rem）を下回らせない。iOS Safari は 16px 未満の入力欄に
    フォーカスすると、読めるようにページごと勝手に拡大する（戻すにはピンチ操作が要る）。
    補助的な欄なので小さくしたくなるが、小ささは padding で作る */
 .compose-target {
   display: block; width: 100%;
-  border: 1px solid var(--line); border-radius: .65rem;
+  border: 1px solid transparent; border-radius: .65rem;
   padding: .45rem 2.5rem .45rem .7rem;
-  color: var(--ink); background: var(--white); font: inherit; font-size: 16px;
+  color: var(--ink); background: var(--soft); font: inherit; font-size: 16px;
 }
-.compose-target:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
+.compose-target:focus { outline: none; border-color: var(--blue-bright); background: var(--white); }
 /* ⚠️ .target-open / .target-option には必ず .compose を前に付ける。下の `.compose button`
    （送るボタン）は詳細度で勝つので、外すと濃い青の塗りに化ける */
 .compose .target-open {
-  position: absolute; right: .3rem; top: 50%; transform: translateY(-50%);
+  position: absolute; right: .3rem; top: calc(50% + .3rem); transform: translateY(-50%);
   width: 2rem; height: 2rem; min-height: 0; padding: 0;
   display: flex; align-items: center; justify-content: center;
   border: 0; border-radius: .5rem; background: transparent; color: var(--mut);
@@ -200,7 +207,7 @@ main {
 /* 依頼カードに出すプロジェクト名。指定なしの依頼には出さない（未指定が既定なので、
    毎回「おまかせ」と書くとカードが賑やかになるだけで情報が増えない） */
 .target-badge {
-  display: inline-block; min-width: 0; margin: 0; padding: .15rem .6rem;
+  display: inline-block; min-width: 0; margin: 0; padding: .18rem .62rem;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   border-radius: 999px; background: var(--blue-soft); color: var(--blue-deep);
   font-size: .72rem; font-weight: 700;
@@ -208,9 +215,18 @@ main {
 .compose-actions { display: flex; align-items: center; gap: .6rem; margin-top: .6rem; }
 .compose-hint { flex: 1; min-width: 0; color: var(--mut); font-size: .72rem; line-height: 1.5; }
 .compose button {
-  flex: none; min-height: 2.6rem; padding: .55rem 1.1rem;
-  border: 0; border-radius: .65rem; color: var(--white); background: var(--blue);
-  font-weight: 700; cursor: pointer;
+  flex: none; min-height: 2.6rem; padding: .55rem 1.15rem;
+  display: inline-flex; align-items: center; gap: .4rem;
+  border: 0; border-radius: .75rem; color: var(--white); background: var(--blue);
+  box-shadow: 0 6px 16px rgba(10, 70, 149, .2);
+  font-weight: 700; letter-spacing: .02em; cursor: pointer;
+  transition: filter .16s ease, transform .1s ease;
+}
+.compose button:hover { filter: brightness(1.08); }
+.compose button:active { transform: scale(.985); }
+.compose button svg {
+  width: .95rem; height: .95rem;
+  fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
 .compose button:disabled { opacity: .55; cursor: default; }
 /* 高さのばらつくカードを隙間なく詰めるための多段組み。ダッシュボード（.dbody）と同じ
@@ -221,60 +237,119 @@ main {
 /* 一覧のテーマのカードと同じ白い面・角丸・影。状態を辺の色の帯で示さない
    （上辺や左端だけに色を付けるカードは、AIが作った画面に見える定番の型） */
 .card {
-  margin-bottom: .9rem; padding: 1.05rem 1.1rem;
-  border: 1px solid rgba(14, 13, 106, .06); border-radius: 1rem;
-  background: var(--white); box-shadow: 0 1px 2px rgba(26, 26, 31, .03), 0 10px 26px rgba(14, 13, 106, .055);
+  position: relative;
+  margin-bottom: 1rem; padding: 1rem 1.15rem 1.05rem;
+  border: 1px solid rgba(14, 13, 106, .07); border-radius: 1.1rem;
+  background: var(--white);
+  box-shadow: 0 1px 2px rgba(26, 26, 31, .04), 0 6px 18px rgba(14, 13, 106, .045);
+  transition: box-shadow .2s ease, border-color .2s ease;
   /* カードが段をまたいで割れると、質問文と承認ボタンが別の段に分かれてしまう */
   break-inside: avoid; -webkit-column-break-inside: avoid;
 }
-.meta { display: flex; align-items: center; gap: .55rem; margin-bottom: .55rem; }
+@media (hover: hover) {
+  .card:hover { border-color: rgba(14, 13, 106, .12); box-shadow: 0 1px 2px rgba(26, 26, 31, .04), 0 14px 34px rgba(14, 13, 106, .09); }
+}
+.meta { display: flex; align-items: center; gap: .5rem; min-height: 2rem; margin-bottom: .45rem; }
 .meta .time { margin-left: auto; }
 /* 返事を待っている確認は、一覧の未読と同じ小さな丸で示す */
 .card.waiting:not(.request) .meta::before {
   content: ""; flex: none; width: .42rem; height: .42rem; border-radius: 50%;
   background: var(--blue-bright); box-shadow: 0 0 0 3px rgba(10, 160, 220, .15);
 }
-.title { color: var(--sub); font-size: .78rem; font-weight: 700; overflow-wrap: anywhere; }
-.time { flex: none; color: var(--mut); font-size: .7rem; }
-.question { margin: 0; font-size: 1rem; line-height: 1.65; white-space: pre-wrap; }
-.context { margin: .6rem 0 0; color: var(--sub); font-size: .82rem; line-height: 1.55; white-space: pre-wrap; }
-.recommendation {
-  margin: .75rem 0 0; padding: .65rem .8rem; border-radius: .7rem;
-  color: var(--sub); background: var(--soft); font-size: .82rem; line-height: 1.55;
+.title {
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  color: var(--sub); font-size: .76rem; font-weight: 700; letter-spacing: .02em;
 }
-.recommendation strong { color: var(--ink); }
+.time { flex: none; color: var(--mut); font-size: .7rem; font-variant-numeric: tabular-nums; }
+/* カード右上の小さな記号ボタン（コピー・削除）。枠を付けず、触れたときだけ面を出す */
+.icon-btn {
+  flex: none; width: 2rem; height: 2rem; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: 0; border-radius: .6rem; background: transparent; color: var(--mut);
+  cursor: pointer; transition: background .16s ease, color .16s ease;
+}
+.icon-btn:hover { background: var(--soft); color: var(--ink); }
+.icon-btn:active { transform: scale(.94); }
+.icon-btn:disabled { opacity: .55; cursor: default; }
+.icon-btn svg {
+  width: 1rem; height: 1rem;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  stroke-linecap: round; stroke-linejoin: round;
+}
+.icon-btn.done { color: var(--success); background: var(--success-soft); }
+/* 削除は1回目で文字の札へ変わり、もう一度押すと消える。指が当たっただけで消さない */
+.icon-btn.armed {
+  width: auto; padding: 0 .65rem; border-radius: 999px;
+  color: var(--gold-deep); background: var(--gold-soft);
+  font-size: .72rem; font-weight: 700; white-space: nowrap;
+}
+/* 本文の囲み。長いものは数行で止め、下端を背景へ溶かしてカードの背丈をそろえる。
+   超えたときだけ .clamped が付く */
+.body { position: relative; }
+.body.clamped {
+  max-height: 10.5rem; overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+          mask-image: linear-gradient(to bottom, #000 55%, transparent 100%);
+}
+.more {
+  display: inline-flex; align-items: center; gap: .3rem;
+  margin: .35rem 0 0 -.5rem; padding: .3rem .5rem;
+  border: 0; border-radius: .5rem; background: transparent; color: var(--blue);
+  font-size: .76rem; font-weight: 700; cursor: pointer;
+}
+/* display を指定しているので、hidden 属性だけでは消えない */
+.more[hidden] { display: none; }
+.more:hover { background: var(--blue-soft); }
+.more svg {
+  width: .8rem; height: .8rem; transition: transform .2s ease;
+  fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round;
+}
+.more[aria-expanded="true"] svg { transform: rotate(180deg); }
+.question { margin: 0; font-size: .97rem; line-height: 1.7; letter-spacing: .01em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.context { margin: .55rem 0 0; color: var(--sub); font-size: .83rem; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.context a, .question a { color: var(--blue-mid); text-underline-offset: .15em; }
+.recommendation {
+  margin: .75rem 0 0; padding: .7rem .85rem; border-radius: .8rem;
+  color: var(--sub); background: var(--soft); font-size: .83rem; line-height: 1.6;
+}
+.recommendation .label {
+  display: block; margin-bottom: .15rem;
+  color: var(--blue); font-size: .68rem; font-weight: 700; letter-spacing: .06em;
+}
 /* 承認を1行占有させ、その下にコメント欄と送るを置く。3段組みだと段幅が23remしかなく、
    承認・入力・送るを横一列にすると入力欄が指1本ぶんしか残らない。段数が変わっても
    同じ形にしておけば、スマホとPCで操作の形が食い違わない */
 .actions { display: grid; grid-template-columns: 1fr auto; gap: .45rem; margin-top: .9rem; }
 .approve { grid-column: 1 / -1; }
 .approve, .send {
-  min-height: 2.8rem; border: 0; border-radius: .65rem; padding: .65rem .9rem;
-  color: var(--white); cursor: pointer; font-weight: 700;
+  min-height: 2.75rem; border: 0; border-radius: .75rem; padding: .6rem .95rem;
+  color: var(--white); cursor: pointer; font-weight: 700; letter-spacing: .02em;
+  transition: filter .16s ease, transform .1s ease;
 }
-.approve { background: var(--blue); }
-.send { background: var(--sub); }
+.approve:hover, .send:hover { filter: brightness(1.08); }
+.approve:active, .send:active { transform: scale(.985); }
+.approve { background: var(--blue); box-shadow: 0 6px 16px rgba(10, 70, 149, .2); }
+.send { background: var(--ink); }
 .actions input {
-  min-width: 0; min-height: 2.8rem; width: 100%;
-  border: 1px solid var(--line); border-radius: .65rem; padding: .65rem .75rem;
-  color: var(--ink); background: var(--white); font-size: 16px;
+  min-width: 0; min-height: 2.75rem; width: 100%;
+  border: 1px solid transparent; border-radius: .75rem; padding: .6rem .8rem;
+  color: var(--ink); background: var(--soft); font-size: 16px;
+  transition: background .16s ease, border-color .16s ease;
 }
-.actions input:focus { outline: 2px solid var(--blue-bright); border-color: transparent; }
+.actions input:focus { outline: none; border-color: var(--blue-bright); background: var(--white); box-shadow: 0 0 0 3px rgba(10, 160, 220, .15); }
 .actions button:disabled { opacity: .55; cursor: default; }
 .reply {
-  margin: .7rem 0 0; padding: .65rem .8rem; border-radius: .7rem;
-  color: var(--ink); background: var(--soft); font-size: .84rem; white-space: pre-wrap;
+  margin: .7rem 0 0; padding: .65rem .85rem; border-radius: .8rem;
+  color: var(--ink); background: var(--blue-soft); font-size: .84rem; line-height: 1.6; white-space: pre-wrap;
 }
-.waiting-mac { margin-top: .7rem; color: var(--blue); font-size: .72rem; font-weight: 700; }
-.discard {
-  flex: none; min-height: 2rem; border: 1px solid var(--line); border-radius: 999px;
-  padding: .1rem .7rem; color: var(--mut); background: transparent;
-  font-size: .7rem; cursor: pointer;
+.waiting-mac {
+  display: inline-flex; align-items: center; gap: .4rem;
+  margin-top: .75rem; color: var(--mut); font-size: .72rem; font-weight: 600;
 }
-.discard.armed {
-  border-color: var(--gold); color: var(--gold-deep); background: var(--gold-soft); font-weight: 700;
+.waiting-mac::before {
+  content: ""; width: .4rem; height: .4rem; border-radius: 50%;
+  background: var(--gold); box-shadow: 0 0 0 3px rgba(240, 178, 31, .18);
 }
-.discard:disabled { opacity: .55; cursor: default; }
 /* 「ありません」の1枚だけは段に押し込めず、幅いっぱいの中央に置く */
 .empty {
   padding: 2.3rem .8rem; text-align: center; color: var(--mut); font-size: .9rem;
@@ -282,8 +357,15 @@ main {
 }
 .empty strong { display: block; margin-bottom: .35rem; color: var(--blue-deep); font-size: 1rem; }
 .history { margin-top: 1.4rem; }
-.history details { border-top: 1px solid var(--line); padding-top: .8rem; }
-.history summary { color: var(--mut); cursor: pointer; font-size: .8rem; }
+.history details { border-top: 1px solid var(--line); padding-top: .9rem; }
+.history summary {
+  display: inline-flex; align-items: center; gap: .4rem; padding: .35rem .7rem; border-radius: 999px;
+  color: var(--sub); cursor: pointer; font-size: .78rem; font-weight: 600; list-style: none;
+}
+.history summary::-webkit-details-marker { display: none; }
+.history summary::before { content: "›"; display: inline-block; font-size: 1rem; line-height: 1; transition: transform .2s ease; }
+.history details[open] summary::before { transform: rotate(90deg); }
+.history summary:hover { background: var(--white); }
 .history .cards { margin-top: .7rem; opacity: .82; }
 footer {
   padding: 0 max(var(--gutter), env(safe-area-inset-right))
@@ -388,7 +470,7 @@ footer {
     </div>
     <div class="compose-actions">
       <span class="compose-hint">PCで <strong>/inbox</strong> と打つと、Claudeがここから読み取ります。</span>
-      <button type="submit" id="compose-send">頼む</button>
+      <button type="submit" id="compose-send">頼む<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
     </div>
   </form>
   <div class="cards" id="request-cards"></div>
@@ -482,12 +564,42 @@ footer {
     return body;
   }
 
+  const ICON_COPY = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2.4"/><path d="M15.5 8.5V6.9a2.4 2.4 0 0 0-2.4-2.4H6.9a2.4 2.4 0 0 0-2.4 2.4v6.2a2.4 2.4 0 0 0 2.4 2.4h1.6"/></svg>';
+  const ICON_CHECK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.2 4.2L19 7"/></svg>';
+  const ICON_TRASH = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 7h15M9.5 7V5.2c0-.4.3-.7.7-.7h3.6c.4 0 .7.3.7.7V7M6.5 7l.8 11.3c.1.7.6 1.2 1.3 1.2h6.8c.7 0 1.2-.5 1.3-1.2L17.5 7"/></svg>';
+  const ICON_CHEVRON = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+
+  // 「続きを表示」で開いたカード。60秒ごとの読み直しで畳み直されると、読んでいる途中で閉じてしまう
+  const expanded = new Set();
+
+  // Clipboard API が使えない環境（権限・非HTTPS）では、選択してコピーする古い経路に落とす
+  async function copyText(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.cssText = 'position:absolute;left:-9999px;top:0;font-size:16px';
+      document.body.append(area);
+      area.select();
+      const ok = document.execCommand('copy');
+      area.remove();
+      return ok;
+    }
+  }
+
+  // コピーするのは本文（依頼文・質問）と状況説明
+  const copyBody = (task) => [task.question, task.context].map((v) => String(v ?? '').trim()).filter(Boolean).join('\n\n');
+
   function taskCard(task) {
     const request = isRequest(task);
     const card = document.createElement('article');
     card.className = `card ${task.status}${request ? ' request' : ''}`;
+    card.dataset.id = task.id;
     const recommendation = task.recommendation
-      ? `<div class="recommendation"><strong>Claudeの推奨：</strong>${escapeHtml(task.recommendation)}</div>`
+      ? `<div class="recommendation"><span class="label">Claudeの推奨</span>${escapeHtml(task.recommendation)}</div>`
       : '';
     const context = task.context ? `<p class="context">${linkify(task.context)}</p>` : '';
     const response = task.responseText
@@ -502,27 +614,46 @@ footer {
         ${heading}${target}
         <span class="time">${relativeTime(task.updatedAt)}</span>
       </div>
-      <p class="question">${escapeHtml(task.question)}</p>
-      ${context}${recommendation}${response}
+      <div class="body">
+        <p class="question">${escapeHtml(task.question)}</p>
+        ${context}${recommendation}${response}
+      </div>
     `;
+
+    const copy = document.createElement('button');
+    copy.className = 'icon-btn copy';
+    copy.type = 'button';
+    copy.innerHTML = ICON_COPY;
+    copy.title = '本文をコピー';
+    copy.setAttribute('aria-label', '本文をコピー');
+    copy.addEventListener('click', async () => {
+      const ok = await copyText(copyBody(task));
+      toast(ok ? 'コピーしました' : 'コピーできませんでした');
+      if (!ok) return;
+      copy.innerHTML = ICON_CHECK;
+      copy.classList.add('done');
+      clearTimeout(copy.timer);
+      copy.timer = setTimeout(() => { copy.innerHTML = ICON_COPY; copy.classList.remove('done'); }, 1600);
+    });
 
     // 追跡が不要になったカードを消す。指が当たっただけで消えないよう、1回目は確認へ変わる。
     const discard = document.createElement('button');
-    discard.className = 'discard';
+    discard.className = 'icon-btn discard';
     discard.type = 'button';
-    discard.textContent = '削除';
-    discard.setAttribute('aria-label', 'この確認事項を削除する');
+    discard.innerHTML = ICON_TRASH;
+    discard.title = '削除';
+    discard.setAttribute('aria-label', 'この項目を削除する');
     let armed = false;
     const disarm = () => {
       armed = false;
-      discard.textContent = '削除';
+      discard.innerHTML = ICON_TRASH;
       discard.classList.remove('armed');
     };
     discard.addEventListener('click', async () => {
       if (busy) return;
       if (!armed) {
         armed = true;
-        discard.textContent = '本当に削除？';
+        discard.textContent = '削除する？';
         discard.classList.add('armed');
         clearTimeout(discard.timer);
         discard.timer = setTimeout(disarm, 5000);
@@ -543,7 +674,19 @@ footer {
         busy = false;
       }
     });
-    card.querySelector('.meta').append(discard);
+    card.querySelector('.meta').append(copy, discard);
+
+    const more = document.createElement('button');
+    more.className = 'more';
+    more.type = 'button';
+    more.hidden = true;
+    more.addEventListener('click', () => {
+      const body = card.querySelector('.body');
+      const open = body.classList.toggle('clamped') === false;
+      if (open) expanded.add(task.id); else expanded.delete(task.id);
+      setMoreLabel(more, open);
+    });
+    card.querySelector('.body').after(more);
 
     if (task.status === 'waiting' && !request) {
       const actions = document.createElement('div');
@@ -587,6 +730,35 @@ footer {
     return card;
   }
 
+  function setMoreLabel(button, open) {
+    button.innerHTML = `${open ? '閉じる' : '続きを表示'}${ICON_CHEVRON}`;
+    button.setAttribute('aria-expanded', String(open));
+  }
+
+  // 畳むかどうかは描画後の実寸で決める。文字数で決めると、段幅や改行の多さで
+  // 「短いのに畳まれる」「長いのに畳まれない」が起きる。開いているカードは畳み直さない
+  const CLAMP_PX = () => parseFloat(getComputedStyle(document.documentElement).fontSize) * 10.5;
+  function measureClamps() {
+    const limit = CLAMP_PX();
+    for (const card of document.querySelectorAll('.card')) {
+      const body = card.querySelector('.body');
+      const more = card.querySelector('.more');
+      if (!body || !more) continue;
+      const open = expanded.has(card.dataset.id);
+      body.classList.remove('clamped');
+      const tall = body.scrollHeight > limit + 24;
+      more.hidden = !tall;
+      if (!tall) continue;
+      if (!open) body.classList.add('clamped');
+      setMoreLabel(more, open);
+    }
+  }
+  let measureTimer;
+  window.addEventListener('resize', () => {
+    clearTimeout(measureTimer);
+    measureTimer = setTimeout(measureClamps, 150);
+  });
+
   function emptyNote(text) {
     const empty = document.createElement('div');
     empty.className = 'empty';
@@ -615,6 +787,7 @@ footer {
     if (active.length === 0) activeCards.append(emptyNote('Claudeからの確認はありません'));
 
     renderTargetOptions(items);
+    requestAnimationFrame(measureClamps);
   }
 
   // プロジェクト名の候補は、過去に自分が実際に打った値だけから作る。決め打ちの一覧を持たないので、
@@ -704,6 +877,7 @@ footer {
   }
 
   $('refresh').addEventListener('click', load);
+  $('history-section').querySelector('details').addEventListener('toggle', measureClamps);
   $('compose').addEventListener('submit', submitRequest);
   $('target-open').addEventListener('click', toggleTargetList);
   document.addEventListener('click', (event) => {

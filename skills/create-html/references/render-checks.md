@@ -92,6 +92,12 @@ If it overflows, find the element whose `getBoundingClientRect().right` exceeds 
 
 `getBBox()` ignores `transform`. If a figure positions groups with `transform`, compare `getBoundingClientRect()` instead.
 
+Typical causes of the issues these checks find, and fixes:
+
+- A band meant to be pale is drawn with the dark gradient. When the code that picks a fill tests for the gradient before the pale variant, passing the pale flag still yields the dark band and dark text sinks into it. Test for the pale variant first.
+- A long label in a narrow band. Merge the band with its neighbor or shorten the label; do not let the text run outside the band.
+- Timeline headings with leader lines. Centered headings on alternating rows get crossed by the neighboring line. Put each heading to the right of its own line and assign rows from the rightmost entry, each taking the lowest free row, so headings on the left move up and lines never cross them. Leave room to the right of the last entry, and when no row is free, stop generating the figure instead of letting labels overlap.
+
 ## Labels on dark lines and dark fills
 
 `issues` must be an empty array. It samples points inside each label and finds the topmost shape drawn before it at each point. Only dark shapes count (relative luminance below 0.5), so light grid lines and pale cards do not trigger it. A label on a dark stroke is reported. A label on a dark fill is reported only when the text is darker than the fill and the contrast ratio is below 4.5, so white text on a dark shape passes. Text with a white halo (`paint-order: stroke` and a stroke of 2 or more) may sit on a line and is skipped. Semi-transparent paint is evaluated as if composited on white; gradients are checked stop by stop.
