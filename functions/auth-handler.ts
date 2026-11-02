@@ -117,6 +117,9 @@ async function callback(event: any): Promise<any> {
   const key = await privateKey();
   const code = event.queryStringParameters?.code;
   const state = event.queryStringParameters?.state;
+  // /passkeys/add は登録後、code を付けず ?result=success だけで戻す。Cognito 側のセッションは残っているので、
+  // ふつうのログインへ流せば画面を挟まずに一覧アプリへ入れる。
+  if (!code && event.queryStringParameters?.result === 'success') return await login();
   const verifier = cookieMap(event).html_share_pkce;
   if (!code || !state || !verifier) return failure(400, 'Authentication information is incomplete.');
   verifyState(state, key);
