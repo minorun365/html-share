@@ -93,6 +93,44 @@ function cognitoUrl(pathname: string): URL {
   return new URL(pathname, required('COGNITO_ORIGIN'));
 }
 
+// aws.cognito.signin.user.admin は、ログイン直後に ListWebAuthnCredentials でパスキーの有無を数えるために要る。
+export const LOGIN_SCOPE = 'openid email aws.cognito.signin.user.admin';
+
+// Managed Login のドメイン（<prefix>.auth.<region>.amazoncognito.com）から、ユーザープールAPIの入口を作る。
+export function cognitoApiEndpoint(cognitoOrigin: string): string {
+  const match = new URL(cognitoOrigin).host.match(/\.auth\.([a-z0-9-]+)\.amazoncognito\.com$/);
+  if (!match) throw new Error('Cannot read the region from COGNITO_ORIGIN');
+  return `https://cognito-idp.${match[1]}.amazonaws.com/`;
+}
+
+export function passkeyAddUrl(cognitoOrigin: string, clientId: string, returnTo: string): string {
+  const url = new URL('/passkeys/add', cognitoOrigin);
+  url.search = new URLSearchParams({ client_id: clientId, redirect_uri: returnTo }).toString();
+  return url.toString();
+}
+
+// ログインした本人のパスキーの数。数えられなかったときは null を返し、ログインは止めない。
+// パスキーが無いとメールの確認コードしか選べないので、0件のときはログイン直後に登録ページへ回す。
+async function countPasskeys(accessToken: string): Promise<number | null> {
+  try {
+    const response = await fetch(cognitoApiEndpoint(required('COGNITO_ORIGIN')), {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/x-amz-json-1.1',
+        'x-amz-target': 'AWSCognitoIdentityProviderService.ListWebAuthnCredentials',
+      },
+      body: JSON.stringify({ AccessToken: accessToken, MaxResults: 20 }),
+      signal: AbortSignal.timeout(5_000),
+    });
+    if (!response.ok) throw new Error(`ListWebAuthnCredentials failed: ${response.status}`);
+    const body = await response.json() as { Credentials?: unknown[] };
+    return Array.isArray(body.Credentials) ? body.Credentials.length : null;
+  } catch (error) {
+    console.error(JSON.stringify({ level: 'warn', message: error instanceof Error ? error.message : 'Passkey count failed' }));
+    return null;
+  }
+}
+
 // 管理者が作った本人ユーザーには、Cognito がログイン後にパスキーの登録を勧めない。
 // /auth/passkey は Cognito の登録ページ（/passkeys/add）へ同じ引数で送り、登録後はふつうのログインと同じ戻り口へ帰す。
 async function login(cognitoPath = '/oauth2/authorize'): Promise<any> {
@@ -105,7 +143,7 @@ async function login(cognitoPath = '/oauth2/authorize'): Promise<any> {
     code_challenge_method: 'S256',
     redirect_uri: required('CALLBACK_URL'),
     response_type: 'code',
-    scope: 'openid email',
+    scope: LOGIN_SCOPE,
     state: createState(key),
   }).toString();
   return redirect(authorize.toString(), [
@@ -119,6 +157,8 @@ async function callback(event: any): Promise<any> {
   const state = event.queryStringParameters?.state;
   // /passkeys/add は登録後、code を付けず ?result=success だけで戻す。Cognito 側のセッションは残っているので、
   // ふつうのログインへ流せば画面を挟まずに一覧アプリへ入れる。
+  // ログイン直後に回した登録ページから戻ったとき（登録を飛ばした場合も）は、発行済みの Cookie でそのまま一覧へ入れる。
+  if (!code && cookieMap(event)['CloudFront-Policy']) return redirect('/app/index.html');
   if (!code && event.queryStringParameters?.result === 'success') return await login();
   const verifier = cookieMap(event).html_share_pkce;
   if (!code || !state || !verifier) return failure(400, 'Authentication information is incomplete.');
@@ -163,7 +203,12 @@ async function callback(event: any): Promise<any> {
     policy,
   });
   const cookieAttributes = `Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=${SESSION_SECONDS}`;
-  return redirect('/app/index.html', [
+  // Cognito は管理者が作ったユーザーへパスキーの登録を勧めないので、0件ならここで登録ページへ回す。
+  const passkeys = await countPasskeys(tokens.access_token);
+  const next = passkeys === 0
+    ? passkeyAddUrl(required('COGNITO_ORIGIN'), required('COGNITO_CLIENT_ID'), required('CALLBACK_URL'))
+    : '/app/index.html';
+  return redirect(next, [
     `CloudFront-Policy=${signed['CloudFront-Policy']}; ${cookieAttributes}`,
     `CloudFront-Signature=${signed['CloudFront-Signature']}; ${cookieAttributes}`,
     `CloudFront-Key-Pair-Id=${signed['CloudFront-Key-Pair-Id']}; ${cookieAttributes}`,

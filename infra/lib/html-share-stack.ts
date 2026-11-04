@@ -180,7 +180,8 @@ export class HtmlShareStack extends Stack {
         callbackUrls: [callbackUrl],
         logoutUrls: [consoleOrigin],
         defaultRedirectUri: callbackUrl,
-        scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL],
+        // COGNITO_ADMIN は、ログイン直後にパスキーの有無を数える ListWebAuthnCredentials 用
+        scopes: [cognito.OAuthScope.OPENID, cognito.OAuthScope.EMAIL, cognito.OAuthScope.COGNITO_ADMIN],
       },
       supportedIdentityProviders: [cognito.UserPoolClientIdentityProvider.COGNITO],
       preventUserExistenceErrors: true,
