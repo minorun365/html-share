@@ -35,7 +35,7 @@ If none exists, explain that the current client did not expose a resumable sessi
    html-share review pull --session "<session-id>"
    ```
 
-2. Apply returned comments as new user instructions. Complete a card only after its instruction has been handled:
+2. Apply returned comments as new user instructions. An approved `kind: run` card permits exactly the action in its `recommendation`. An approved `kind: todo` card only means the user finished their own task, so close it without further work (card kinds are in `references/review-cards.md`). Complete a card only after its instruction has been handled:
 
    ```bash
    html-share review complete <card-id>

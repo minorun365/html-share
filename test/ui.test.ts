@@ -54,6 +54,9 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.match(review, /function measureClamps/, '長いカードは実寸で畳む');
   assert.match(review, /\.body\.clamped/);
   assert.match(review, /function copyText/, 'カード本文のコピーボタン');
+  assert.match(review, /kind-badge run">承認で実行/, 'run のカードは承認で実行と見せる');
+  assert.match(review, /kind-badge todo">あなたの番/, 'todo のカードは本人の作業と見せる');
+  assert.match(review, /'済んだ'/, 'todo の承認ボタンは済んだの合図');
   assert.match(dashboard, /id="review-dot"/);
   assert.match(dashboard, /function refreshInboxDot/);
   assert.match(dashboard, /\/api\/owner\/reviews/);

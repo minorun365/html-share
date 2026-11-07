@@ -17,6 +17,9 @@ export interface ReviewCard {
   question: string;
   context?: string;
   recommendation?: string;
+  /** run＝承認すると Claude が recommendation を実行する、todo＝本人の作業で承認は「済んだ」の合図 */
+  kind?: '' | 'run' | 'todo';
+  approved?: boolean;
   status?: string;
   source?: string;
   target?: string | null;

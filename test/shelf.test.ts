@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { cleanShelfAdded, cleanShelfDone } from '../functions/review-handler.ts';
+import { cardKind, cleanShelfAdded, cleanShelfDone } from '../functions/review-handler.ts';
 import { buildShelf, chipWidth, liveDues, nextDue, resolveStreamChips, type BuiltPage } from '../src/bundle.js';
 
 function page(slug: string, stream: string, updatedAt: string, streamChip = stream): BuiltPage {
@@ -159,4 +159,11 @@ test('the browser picks the nearest deadline with the same rule, including pinne
   assert.doesNotMatch(html, /due: null, added: true/);
   assert.match(html, /return withDue\(\{ id: `@added:\$\{key\}`/);
   assert.match(html, /meta\?\.streamDues\?\.\[item\.stream\]/);
+});
+
+test('accepts only the known review card kinds', () => {
+  assert.equal(cardKind(undefined), '');
+  assert.equal(cardKind(' run '), 'run');
+  assert.equal(cardKind('todo'), 'todo');
+  assert.throws(() => cardKind('later'), /kind must be run or todo/);
 });

@@ -212,6 +212,13 @@ main {
   border-radius: 999px; background: var(--blue-soft); color: var(--blue-deep);
   font-size: .72rem; font-weight: 700;
 }
+/* カードの種類。承認したら何が起きるかを、ボタンを押す前に見せる */
+.kind-badge {
+  flex: none; display: inline-block; margin: 0; padding: .18rem .62rem; white-space: nowrap;
+  border-radius: 999px; font-size: .72rem; font-weight: 700;
+  background: var(--blue-soft); color: var(--blue-deep);
+}
+.kind-badge.todo { background: #fff1d6; color: #7a4a00; }
 .compose-actions { display: flex; align-items: center; gap: .6rem; margin-top: .6rem; }
 .compose-hint { flex: 1; min-width: 0; color: var(--mut); font-size: .72rem; line-height: 1.5; }
 .compose button {
@@ -598,11 +605,20 @@ footer {
     const card = document.createElement('article');
     card.className = `card ${task.status}${request ? ' request' : ''}`;
     card.dataset.id = task.id;
+    // run＝承認すると Claude が実行する、todo＝本人の作業でボタンは「済んだ」の合図
+    const kind = request ? '' : (task.kind || '');
+    if (kind) card.dataset.kind = kind;
+    const done = kind === 'todo' && task.approved === true;
+    const recommendationLabel = kind === 'run' ? '承認するとClaudeがやること'
+      : kind === 'todo' ? 'やること' : 'Claudeの推奨';
     const recommendation = task.recommendation
-      ? `<div class="recommendation"><span class="label">Claudeの推奨</span>${escapeHtml(task.recommendation)}</div>`
+      ? `<div class="recommendation"><span class="label">${recommendationLabel}</span>${linkify(task.recommendation)}</div>`
       : '';
+    const kindBadge = kind === 'run' ? '<span class="kind-badge run">承認で実行</span>'
+      : kind === 'todo' ? '<span class="kind-badge todo">あなたの番</span>' : '';
     const context = task.context ? `<p class="context">${linkify(task.context)}</p>` : '';
-    const response = task.responseText
+    // 「済んだ」は返事の文ではないので、返事の枠を出さない
+    const response = task.responseText && !done
       ? `<div class="reply">${escapeHtml(task.responseText)}</div>`
       : '';
     const heading = request ? '' : `<span class="title">${escapeHtml(task.title)}</span>`;
@@ -611,11 +627,11 @@ footer {
       : '';
     card.innerHTML = `
       <div class="meta">
-        ${heading}${target}
+        ${kindBadge}${heading}${target}
         <span class="time">${relativeTime(task.updatedAt)}</span>
       </div>
       <div class="body">
-        <p class="question">${escapeHtml(task.question)}</p>
+        <p class="question">${linkify(task.question)}</p>
         ${context}${recommendation}${response}
       </div>
     `;
@@ -692,23 +708,26 @@ footer {
       const actions = document.createElement('div');
       actions.className = 'actions';
       const approve = document.createElement('button');
-      approve.className = 'approve'; approve.type = 'button'; approve.textContent = '承認';
+      approve.className = 'approve'; approve.type = 'button';
+      approve.textContent = kind === 'todo' ? '済んだ' : kind === 'run' ? '承認して任せる' : '承認';
       const input = document.createElement('input');
       input.type = 'text'; input.placeholder = 'コメントを入力'; input.autocomplete = 'off';
       input.setAttribute('aria-label', 'コメント');
       const send = document.createElement('button');
       send.className = 'send'; send.type = 'button'; send.textContent = '送る';
 
-      const respond = async (kind) => {
+      const respond = async (responseKind) => {
         if (busy) return;
         const text = input.value.trim();
-        if (kind === 'comment' && !text) { input.focus(); return; }
+        if (responseKind === 'comment' && !text) { input.focus(); return; }
         busy = true; approve.disabled = true; send.disabled = true; input.disabled = true;
         try {
           await api(`/owner/reviews/${encodeURIComponent(task.id)}/answer`, {
-            method: 'POST', body: JSON.stringify({ approved: kind === 'approve', responseText: text }),
+            method: 'POST', body: JSON.stringify({ approved: responseKind === 'approve', responseText: text }),
           });
-          toast(kind === 'approve' ? '承認しました' : 'コメントを送りました');
+          toast(responseKind !== 'approve' ? 'コメントを送りました'
+            : kind === 'todo' ? '済んだと記録しました'
+            : kind === 'run' ? '承認しました。Claudeが次に取り込むと実行します' : '承認しました');
           await load();
         } catch (error) {
           toast(error.message);
@@ -724,7 +743,8 @@ footer {
       card.append(actions);
     } else if (task.status === 'answered') {
       const waiting = document.createElement('div');
-      waiting.className = 'waiting-mac'; waiting.textContent = 'Macでの取り込み待ち';
+      waiting.className = 'waiting-mac';
+      waiting.textContent = done ? '済み（次の取り込みで片付きます）' : 'Macでの取り込み待ち';
       card.append(waiting);
     }
     return card;
@@ -744,6 +764,8 @@ footer {
       const body = card.querySelector('.body');
       const more = card.querySelector('.more');
       if (!body || !more) continue;
+      // 種類つきのカードは短く書く前提。畳むと「やること」とリンクがボタンの下に隠れるので畳まない
+      if (card.dataset.kind) { body.classList.remove('clamped'); more.hidden = true; continue; }
       const open = expanded.has(card.dataset.id);
       body.classList.remove('clamped');
       const tall = body.scrollHeight > limit + 24;

@@ -23,6 +23,7 @@ Turn the user's content into one complete HTML file that is calm, readable, and 
 - Main content about 940 px wide, body text at least 15 px, line height around 1.85.
 - Use Japanese system fonts first: `-apple-system`, `BlinkMacSystemFont`, `"Hiragino Sans"`, `"Yu Gothic UI"`, `sans-serif`.
 - Tables have no vertical rules and no `min-width`. On phones the delivered page folds narrow tables into stacked cards, so avoid `white-space: nowrap` on long cells and never shrink text to make a table fit.
+- This contract assumes the page is delivered through html-share, which adds the table folding and keeps the colors light. A host that does neither (a chat artifact viewer, a plain file) lets wide tables overflow and may repaint the page in dark mode. If you must publish there, fold the tables in the page's own CSS and set `color-scheme: light`.
 - Use semantic headings in order, visible focus styles, sufficient color contrast, and descriptive link text.
 - Keep decorative icons minimal. Prefer CSS shapes or inline SVG to emoji-heavy decoration.
 

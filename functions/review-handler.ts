@@ -58,6 +58,19 @@ function clean(value: unknown, name: string, maximum: number, needed = false): s
   return result;
 }
 
+const CARD_KINDS = new Set(['', 'run', 'todo']);
+
+/**
+ * カードの種類。run＝承認すると Claude が recommendation を実行する、
+ * todo＝本人にしかできない作業の知らせで、承認ボタンは「済んだ」の合図になる。
+ * 空は従来どおり、承認かコメントを返す確認事項。
+ */
+export function cardKind(value: unknown): string {
+  const kind = typeof value === 'string' ? value.trim() : '';
+  if (!CARD_KINDS.has(kind)) throw Object.assign(new Error('kind must be run or todo'), { statusCode: 400 });
+  return kind;
+}
+
 function hash(value: string): string {
   return createHash('sha256').update(value).digest('hex');
 }
@@ -395,6 +408,7 @@ export async function handler(event: any): Promise<any> {
           question: clean(body.question, 'question', 1000, true),
           context: clean(body.context, 'context', 3000),
           recommendation: clean(body.recommendation, 'recommendation', 1000),
+          kind: cardKind(body.kind),
           status: 'waiting',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
