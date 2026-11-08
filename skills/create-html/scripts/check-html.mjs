@@ -148,8 +148,12 @@ export function checkHtml(source, { baseDir } = {}) {
     for (const src of missingImages(source, baseDir)) ng.push(`image not found: ${src}`);
   }
 
+  // A page made only of text and tables is hard to take in, so no figure is a defect.
+  // Pages that truly need none (a reproduced message, for example) opt out explicitly.
+  const optOut = /<meta\s+name=["']brief-figures["']\s+content=["']none["']/i.test(source);
+  if (!optOut && !has(/<svg\b/i) && !has(/<img\b/i)) ng.push('no figure on the page; draw the comparisons, flows, breakdowns, or structure (pages that need none: <meta name="brief-figures" content="none">)');
+
   // Review items, not defects.
-  if (!has(/<svg\b/i) && !has(/<img\b/i)) warn.push('no figure on the page; check whether a schedule, flow, or structure would read better as a diagram');
   const tables = (source.match(/<table\b/gi) ?? []).length;
   if (tables > 5) warn.push(`${tables} tables; more than five usually means the structure, not the content, is heavy`);
   // Busy sections: a long table or list usually means rows were appended after each round of feedback.

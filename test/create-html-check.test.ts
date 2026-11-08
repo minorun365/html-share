@@ -45,10 +45,14 @@ for (const [name, breakIt, expected] of breakages) {
   });
 }
 
-test('warns when a page has no figure', () => {
-  const { ng, warn } = checkHtml(filled.replace(/<figure[\s\S]*?<\/figure>/, ''));
-  assert.deepEqual(ng, []);
-  assert.ok(warn.some((line: string) => line.includes('no figure')));
+test('fails when a page has no figure', () => {
+  const { ng } = checkHtml(filled.replace(/<figure[\s\S]*?<\/figure>/, ''));
+  assert.ok(ng.some((line: string) => line.includes('no figure')));
+});
+
+test('a page can opt out of the figure check explicitly', () => {
+  const noFigure = filled.replace(/<figure[\s\S]*?<\/figure>/, '').replace('<head>', '<head><meta name="brief-figures" content="none">');
+  assert.ok(!checkHtml(noFigure).ng.some((line: string) => line.includes('no figure')));
 });
 
 const breads = ['Sourdough', 'Rye', 'Baguette', 'Brioche', 'Ciabatta', 'Focaccia', 'Bagel', 'Croissant', 'Pretzel', 'Challah'];
