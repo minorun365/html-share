@@ -4,6 +4,7 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
@@ -119,7 +120,38 @@ export function assertNotShrinking(remoteCount: number, localCount: number, allo
  * expectedRemovals は、この build で意図して外したファイルの数（保管庫へ移したページ）。
  * 保持期限で一度に多くのページが外れても、設定の崩れと取り違えて止めないために数へ足す
  */
-async function syncTree(client: S3Client, bucket: string, root: string, expectedRemovals = 0): Promise<void> {
+/**
+ * 設定ファイルを git で複数の端末と共有しているとき、まだ取り込んでいない変更が上流にあるかを調べる。
+ *
+ *   別の端末が足したページは、pull するまでこの端末の build に無い。そのまま送ると
+ *   syncTree は「ローカルに無いキー」として、届いたばかりのページを消してしまう。
+ *   上流で設定ファイルが変わっている、または上流を確かめられないときは true を返し、呼び出し側は消さずに送る。
+ *   git 管理外・上流なしのときは false（従来どおり消す）。
+ */
+export function hasUnpulledConfigChanges(
+  configFile: string,
+  git: (args: string[]) => string = (args) => execFileSync('git', args, {
+    cwd: path.dirname(configFile),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
+    timeout: 20_000,
+  }),
+): boolean {
+  try {
+    git(['rev-parse', '--abbrev-ref', '@{u}']);
+  } catch {
+    return false;
+  }
+  try {
+    git(['fetch', '--quiet']);
+    return git(['diff', '--name-only', 'HEAD...@{u}', '--', path.basename(configFile)]).trim() !== '';
+  } catch {
+    return true;
+  }
+}
+
+async function syncTree(client: S3Client, bucket: string, root: string, expectedRemovals = 0, allowDelete = true): Promise<void> {
   const remote = await remoteObjects(client, bucket);
   const local = files(root);
   assertNotShrinking(remote.size, local.length + expectedRemovals);
@@ -138,7 +170,7 @@ async function syncTree(client: S3Client, bucket: string, root: string, expected
       CacheControl: 'no-store, max-age=0',
     }));
   }
-  await deleteKeys(client, bucket, [...remote.keys()].filter((key) => !kept.has(key)));
+  if (allowDelete) await deleteKeys(client, bucket, [...remote.keys()].filter((key) => !kept.has(key)));
 }
 
 /**
@@ -256,7 +288,11 @@ export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: st
     const { buildRoot, manifest } = buildUnlocked(config);
     copyConsole(buildRoot, ownerManifest(manifest, outputs, config), config);
     const client = new S3Client({ region: config.aws.region });
-    await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'), manifest.archived.length);
+    const allowDelete = !hasUnpulledConfigChanges(config.configFile);
+    if (!allowDelete) {
+      console.warn('The page list has changes upstream that are not pulled yet (or the upstream could not be checked). Uploading without removing pages; pull and publish again to clean up.');
+    }
+    await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'), manifest.archived.length, allowDelete);
     await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
     return {
       consoleUrl: `${outputs.ConsoleUrl}/app/index.html`,

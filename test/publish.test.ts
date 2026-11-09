@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { BuiltPage } from '../src/bundle.js';
 import type { HtmlShareConfig } from '../src/config.js';
-import { acquirePublishLock, assertNotShrinking, buildOnly, matchingPages } from '../src/publish.js';
+import { acquirePublishLock, assertNotShrinking, buildOnly, hasUnpulledConfigChanges, matchingPages } from '../src/publish.js';
 
 function page(slug: string, title = slug): BuiltPage {
   return {
@@ -86,4 +86,28 @@ test('refuses a publish that would delete most of the bucket', () => {
   assert.doesNotThrow(() => assertNotShrinking(1000, 950, false));
   assert.doesNotThrow(() => assertNotShrinking(1000, 3, true));
   assert.doesNotThrow(() => assertNotShrinking(20, 0, false));
+});
+
+function fakeGit(responses: Record<string, string | Error>): (args: string[]) => string {
+  return (args) => {
+    const answer = responses[args[0]];
+    if (answer instanceof Error) throw answer;
+    return answer ?? '';
+  };
+}
+
+test('keeps deleting when the config is not tracked against an upstream', () => {
+  assert.equal(hasUnpulledConfigChanges('/repo/html-share.config.yaml', fakeGit({ 'rev-parse': new Error('no upstream') })), false);
+});
+
+test('keeps deleting when the upstream has not touched the config', () => {
+  assert.equal(hasUnpulledConfigChanges('/repo/html-share.config.yaml', fakeGit({ diff: '' })), false);
+});
+
+test('stops deleting when the upstream added pages that are not pulled yet', () => {
+  assert.equal(hasUnpulledConfigChanges('/repo/html-share.config.yaml', fakeGit({ diff: 'html-share.config.yaml\n' })), true);
+});
+
+test('stops deleting when the upstream cannot be fetched', () => {
+  assert.equal(hasUnpulledConfigChanges('/repo/html-share.config.yaml', fakeGit({ fetch: new Error('offline') })), true);
 });
