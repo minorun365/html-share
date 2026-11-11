@@ -325,8 +325,13 @@ export function share(config: HtmlShareConfig, query: string, days: number): str
 }
 
 export function matchingPages<T extends Pick<BuiltPage, 'slug' | 'title'>>(pages: T[], query: string): T[] {
+  // Exact slug first, then a unique exact title, then partial matches. Without the title
+  // step, a page titled exactly as the query stops resolving once another page's title
+  // starts with the same words.
   const exact = pages.filter((page) => page.slug === query);
   if (exact.length > 0) return exact;
+  const titleExact = pages.filter((page) => page.title === query);
+  if (titleExact.length === 1) return titleExact;
   return pages.filter((page) => page.slug.includes(query) || page.title.includes(query));
 }
 

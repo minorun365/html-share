@@ -28,6 +28,12 @@ test('prefers an exact slug over prefix and title matches', () => {
   assert.deepEqual(matchingPages([exact, longer], exact.slug), [exact]);
 });
 
+test('prefers a unique exact title over partial title matches', () => {
+  const exact = page('weekly', 'Weekly review');
+  const longer = page('weekly-team', 'Weekly review for the team');
+  assert.deepEqual(matchingPages([exact, longer], 'Weekly review'), [exact]);
+});
+
 test('keeps partial matching when there is no exact slug', () => {
   const first = page('release-notes', 'Release notes');
   const second = page('roadmap', 'Release roadmap');
