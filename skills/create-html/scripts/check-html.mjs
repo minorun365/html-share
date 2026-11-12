@@ -162,6 +162,15 @@ export function checkHtml(source, { baseDir } = {}) {
   if (!optOut && sections.length >= 3 && bare.length * 2 >= sections.length) {
     warn.push(`${bare.length} of ${sections.length} sections have no figure (${bare.join(', ')}); redraw their cards or lists as a flow, contrast, or breakdown`);
   }
+  // The opposite imbalance: a section with figures but almost no prose leaves the reader to guess what each figure means.
+  const thin = sections
+    .filter((sec) => /<svg\b|<img\b/i.test(sec))
+    .filter((sec) => sec
+      .replace(/<(svg|figure|h2|h3)\b[\s\S]*?<\/\1>/gi, '')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\s+/g, '').length < 150)
+    .map((sec, i) => (sec.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? `section ${i + 1}`).replace(/<[^>]+>/g, '').trim().slice(0, 30));
+  if (thin.length) warn.push(`sections with figures but under 150 characters of prose (${thin.join(', ')}); add a two-to-four-sentence paragraph saying what each figure shows and what follows from it`);
   const tables = (source.match(/<table\b/gi) ?? []).length;
   if (tables > 5) warn.push(`${tables} tables; more than five usually means the structure, not the content, is heavy`);
   // Busy sections: a long table or list usually means rows were appended after each round of feedback.

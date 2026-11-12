@@ -7,7 +7,9 @@ import test from 'node:test';
 import { checkHtml } from '../skills/create-html/scripts/check-html.mjs';
 
 const template = readFileSync(new URL('../skills/create-html/assets/brief-template.html', import.meta.url), 'utf8');
-const filled = template.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_, key: string) => `サンプル ${key.toLowerCase()}`);
+// Prose placeholders get sentence-length text, so the filled template is a realistic page rather than a row of labels.
+const filled = template.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_, key: string) =>
+  /LEAD|EXPLANATION|BODY/.test(key) ? `サンプル ${key.toLowerCase()} の説明文がここに入る。`.repeat(4) : `サンプル ${key.toLowerCase()}`);
 
 test('the filled template passes every check', () => {
   const { ng, warn } = checkHtml(filled);
@@ -59,6 +61,12 @@ test('warns when half or more of the sections have no figure', () => {
   const textSection = (n: number) => `<section id="t${n}"><h2>Text only ${n}</h2><p>Plain text.</p></section>`;
   const html = filled.replace('<footer>', [1, 2, 3, 4, 5, 6].map(textSection).join('') + '<footer>');
   assert.ok(checkHtml(html).warn.some((line: string) => line.includes('have no figure')));
+});
+
+test('warns when a section has a figure but almost no prose', () => {
+  const figureOnly = '<section id="f1"><h2>Figure only</h2><figure><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"/></svg></figure></section>';
+  const html = filled.replace('<footer>', figureOnly + '<footer>');
+  assert.ok(checkHtml(html).warn.some((line: string) => line.includes('under 150 characters of prose')));
 });
 
 const breads = ['Sourdough', 'Rye', 'Baguette', 'Brioche', 'Ciabatta', 'Focaccia', 'Bagel', 'Croissant', 'Pretzel', 'Challah'];
