@@ -49,6 +49,9 @@ test('ships the full dashboard UI and inbox wording', () => {
   assert.doesNotMatch(review, /<select[^>]*id="compose-target"/);
   assert.match(review, /id="target-list"/);
   assert.match(review, /function renderTargetOptions/);
+  // 送るボタンの影・縮みを▼と候補へ漏らさない。hidden の▼は display:flex に負けず消える
+  assert.doesNotMatch(review, /^\.compose button/m);
+  assert.match(review, /\.compose \.target-open\[hidden\] \{ display: none; \}/);
   assert.match(review, /JSON\.stringify\(\{ question: text, target \}\)/);
   assert.match(review, /targetField\.value = '';/);
   assert.match(review, /function measureClamps/, '長いカードは実寸で畳む');

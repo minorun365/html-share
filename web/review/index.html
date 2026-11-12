@@ -174,8 +174,9 @@ main {
   color: var(--ink); background: var(--soft); font: inherit; font-size: 16px;
 }
 .compose-target:focus { outline: none; border-color: var(--blue-bright); background: var(--white); }
-/* ⚠️ .target-open / .target-option には必ず .compose を前に付ける。下の `.compose button`
-   （送るボタン）は詳細度で勝つので、外すと濃い青の塗りに化ける */
+/* 送るボタンの見た目（青い塗り・影・押したときの縮み）は `.compose-actions button` に閉じ込める。
+   `.compose button` と広く書くと、▼と候補のボタンにも影と縮みが漏れ、候補が1行ずつ浮いたカードに
+   見え、▼は押した瞬間に位置がずれる */
 .compose .target-open {
   position: absolute; right: .3rem; top: calc(50% + .3rem); transform: translateY(-50%);
   width: 2rem; height: 2rem; min-height: 0; padding: 0;
@@ -183,6 +184,8 @@ main {
   border: 0; border-radius: .5rem; background: transparent; color: var(--mut);
   font: inherit; font-weight: 400; cursor: pointer;
 }
+/* display:flex は hidden 属性より強いので、履歴が無いときに消えるよう明示する */
+.compose .target-open[hidden] { display: none; }
 .compose .target-open:hover { background: var(--soft); color: var(--sub); }
 .compose .target-open svg {
   width: .8rem; height: .8rem;
@@ -221,7 +224,7 @@ main {
 .kind-badge.todo { background: #fff1d6; color: #7a4a00; }
 .compose-actions { display: flex; align-items: center; gap: .6rem; margin-top: .6rem; }
 .compose-hint { flex: 1; min-width: 0; color: var(--mut); font-size: .72rem; line-height: 1.5; }
-.compose button {
+.compose-actions button {
   flex: none; min-height: 2.6rem; padding: .55rem 1.15rem;
   display: inline-flex; align-items: center; gap: .4rem;
   border: 0; border-radius: .75rem; color: var(--white); background: var(--blue);
@@ -229,13 +232,13 @@ main {
   font-weight: 700; letter-spacing: .02em; cursor: pointer;
   transition: filter .16s ease, transform .1s ease;
 }
-.compose button:hover { filter: brightness(1.08); }
-.compose button:active { transform: scale(.985); }
-.compose button svg {
+.compose-actions button:hover { filter: brightness(1.08); }
+.compose-actions button:active { transform: scale(.985); }
+.compose-actions button svg {
   width: .95rem; height: .95rem;
   fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
 }
-.compose button:disabled { opacity: .55; cursor: default; }
+.compose-actions button:disabled { opacity: .55; cursor: default; }
 /* 高さのばらつくカードを隙間なく詰めるための多段組み。ダッシュボード（.dbody）と同じ
    作り・同じ寸法にそろえてある。段数ではなく列幅で指定しているので、画面幅に
    そのまま追従して最大3段まで自動で増える。Grid だと行の高さが一番背の高いカードに
