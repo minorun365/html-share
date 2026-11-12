@@ -30,6 +30,7 @@ Turn the user's content into one complete HTML file that is calm, readable, and 
 ## Writing rules
 
 - Write the body as a declarative report: plain statements and noun phrases, not conversational or polite spoken style. Phrase open questions as statements in a list, and do not write headings as questions. The only exception is text the user will send or read aloud as-is.
+- When the page covers something the reader has not seen before (a product, a tool, a mechanism), open with what it does, which thing the reader already uses it corresponds to, and who uses it in what situation. Results and steps come after that. Do not assume the reader has read an earlier page on the same subject.
 - Give the main topic the most space. Each core item gets its own section with a figure and a line of reasoning (current problem, approach, status, next step). Do not spend three figures on background and leave the main items as bullet points in one card.
 - Do not put backstory, excuses, or rejected options in leads, captions, or table cells. A row says what changed and how; the reasons belong in the working notes, not the page.
 - Do not make the reader go through the same list twice. If the sections explain items one by one, drop those items from any overview table and use a short diagram or two lines of orientation instead. Do not end with a recap of the same list.
