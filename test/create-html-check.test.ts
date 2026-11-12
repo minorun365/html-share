@@ -69,6 +69,11 @@ test('warns when a section has a figure but almost no prose', () => {
   assert.ok(checkHtml(html).warn.some((line: string) => line.includes('under 150 characters of prose')));
 });
 
+test('warns when two or more paragraphs follow one figure', () => {
+  const html = filled.replace(/(<p>サンプル figure_explanation[^<]*<\/p>)/, '$1\n<p>Another paragraph about the same figure.</p>');
+  assert.ok(checkHtml(html).warn.some((line: string) => line.includes('two or more paragraphs follow a figure')));
+});
+
 const breads = ['Sourdough', 'Rye', 'Baguette', 'Brioche', 'Ciabatta', 'Focaccia', 'Bagel', 'Croissant', 'Pretzel', 'Challah'];
 const insertInSection2 = (html: string, markup: string) => html.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`);
 

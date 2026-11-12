@@ -54,7 +54,7 @@ Turn the user's content into one complete HTML file that is calm, readable, and 
 
 ## Figures
 
-Count figures before delivery. The checker fails a page with no `<svg>` or `<img>`; a page that truly needs none (a reproduced message, for example) opts out with `<meta name="brief-figures" content="none">`. One figure is not the goal: by default, even when nobody asks, pair every section with a figure and a paragraph of two to four sentences saying what the figure shows and what follows from it. Neither side replaces the other (the checker warns when half or more of the sections have no figure, or when a section with figures has under 150 characters of prose). Within that, and draw numeric comparisons (prices, counts, amounts) so the sizes can be seen. Use this table to decide what to draw:
+Count figures before delivery. The checker fails a page with no `<svg>` or `<img>`; a page that truly needs none (a reproduced message, for example) opts out with `<meta name="brief-figures" content="none">`. One figure is not the goal: by default, even when nobody asks, pair every section with a figure and one paragraph of two or three sentences saying what the figure shows and what follows from it. Neither side replaces the other, and one paragraph per figure is the ceiling (the checker warns when half or more of the sections have no figure, when a section with figures has under 150 characters of prose, or when two or more paragraphs follow a figure). When told there is too much of one, set both a floor and a ceiling instead of swinging to the other side. Within that, and draw numeric comparisons (prices, counts, amounts) so the sizes can be seen. Use this table to decide what to draw:
 
 | Content | Figure |
 |---|---|

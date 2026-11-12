@@ -171,6 +171,11 @@ export function checkHtml(source, { baseDir } = {}) {
       .replace(/\s+/g, '').length < 150)
     .map((sec, i) => (sec.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? `section ${i + 1}`).replace(/<[^>]+>/g, '').trim().slice(0, 30));
   if (thin.length) warn.push(`sections with figures but under 150 characters of prose (${thin.join(', ')}); add a two-to-four-sentence paragraph saying what each figure shows and what follows from it`);
+  // The upper bound: two or more paragraphs after one figure turn the page back into a wall of text.
+  const heavy = [...body.matchAll(/<\/figure>((?:\s*(?:<!--[\s\S]*?-->\s*)*<p\b(?![^>]*class="(?:note|lead)")[^>]*>[\s\S]*?<\/p>)+)/gi)]
+    .filter((m) => (m[1].match(/<p\b/gi) ?? []).length >= 2)
+    .map((m) => sectionAt(body, m.index));
+  if (heavy.length) warn.push(`two or more paragraphs follow a figure (${heavy.join(', ')}); keep one paragraph of two or three sentences per figure`);
   const tables = (source.match(/<table\b/gi) ?? []).length;
   if (tables > 5) warn.push(`${tables} tables; more than five usually means the structure, not the content, is heavy`);
   // Busy sections: a long table or list usually means rows were appended after each round of feedback.
