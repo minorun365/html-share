@@ -15,6 +15,7 @@ test('bundles local assets and adds privacy metadata', () => {
   assert.match(bundled, /name="robots" content="noindex/);
   assert.match(bundled, /name="referrer" content="no-referrer"/);
   assert.match(bundled, /table\[data-mb-view="card"\]/);
+  assert.match(bundled, /\.mb-cardhead \{[\s\S]{0,400}linear-gradient/);
   assert.match(bundled, /data-mb-tables/);
   assert.match(bundled, /\.cal-grid\[data-mb-cal="list"\]/);
 });

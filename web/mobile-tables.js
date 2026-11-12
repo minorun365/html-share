@@ -152,7 +152,7 @@
       border-top: 0 !important;
       padding: .5rem .75rem !important;
       background: var(--mb-head) !important;
-      color: var(--mb-ink) !important;
+      color: var(--mb-head-ink) !important;
       font-weight: 700 !important;
       font-size: .875rem !important;
     }
@@ -170,6 +170,26 @@
     table[data-mb-view="card"] > tbody > tr > [data-mb-label=""]::before { content: none; }
     /* セル内の要素が固有幅を持っていても、カードの外へはみ出させない */
     table[data-mb-view="card"] > tbody > tr > * > * { max-width: 100% !important; }
+
+    /* カードへ畳むと表の見出し行（青い帯）が消え、白と灰色だけの面が続く。
+       見出し行の代わりに、列名を並べた青グラデの帯をカード群の頭へ1本置く。
+       白文字の下に敷くのは濃いグラデだけにし、帯の中へ元ページの要素は入れない */
+    .mb-cardhead {
+      display: flex;
+      flex-wrap: wrap;
+      gap: .125rem .75rem;
+      margin: 0 0 .5rem;
+      padding: .5rem .75rem;
+      border-radius: .75rem;
+      background: linear-gradient(135deg, #0e0d6a 0%, #0a4695 45%, #0862aa 68%, #01b6ec 100%);
+      color: #fff;
+      font-size: .75rem;
+      font-weight: 700;
+      line-height: 1.5;
+      letter-spacing: .02em;
+    }
+    .mb-cardhead span { color: #fff; }
+    .mb-cardhead span + span { font-weight: 600; opacity: .86; }
 
     /* ── 横スクロール表示（列が多い表） ─────────────────── */
     .mb-scroll-outer { position: relative; }
@@ -216,7 +236,9 @@
   const palette = {
     '--mb-line': '#e5e5ea',
     '--mb-panel': '#fff',
-    '--mb-head': '#f0f3f7',
+    // カードの見出しは淡い青。灰色だと、畳んだ表から青が1つも残らない
+    '--mb-head': '#eaf2fb',
+    '--mb-head-ink': '#0e0d6a',
     '--mb-ink': '#1a1a1f',
     '--mb-mut': '#6b6b73',
   };
@@ -326,6 +348,20 @@
       });
     }
     table.dataset.mbView = 'card';
+    // 列名が1つも読めない表（thead が無い表など）には帯を出さない
+    const names = labels.filter(Boolean);
+    if (names.length > 0 && !entry.head) {
+      const head = document.createElement('div');
+      head.className = 'mb-cardhead';
+      head.setAttribute('aria-hidden', 'true');   // 各カードのラベルと重複するので読み上げない
+      for (const name of names) {
+        const span = document.createElement('span');
+        span.textContent = name;
+        head.append(span);
+      }
+      entry.outer.prepend(head);
+      entry.head = head;
+    }
   }
 
   function applyScroll(entry) {
@@ -363,6 +399,8 @@
 
   function toTable(entry) {
     entry.view = 'table';
+    entry.head?.remove();
+    entry.head = null;
     delete entry.table.dataset.mbView;
     entry.scroller.style.overflowX = '';
     updateFade(entry);
