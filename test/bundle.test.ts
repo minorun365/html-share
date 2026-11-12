@@ -3,7 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, write
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { buildSite, bundleHtml, slugify } from '../src/bundle.js';
+import { buildSite, bundleHtml, resolveStreamLabels, slugify } from '../src/bundle.js';
 import type { HtmlShareConfig } from '../src/config.js';
 
 test('bundles local assets and adds privacy metadata', () => {
@@ -110,15 +110,16 @@ test('gives every page its theme chip and names untitled shelf items after it', 
   console.warn = (message: string) => { warnings.push(message); };
   try {
     const manifest = buildSite(config, path.join(root, 'build'));
-    // チップ名 → 見出し → テーマキーの順で決まり、同じテーマの全ページに同じ名前が付く
-    assert.deepEqual(manifest.pages.map((item) => item.streamChip), ['新機能リリース', '新機能リリース', '週次レポート', 'misc']);
+    // チップ名 → 見出し → 一番古いページの題名の順で決まり、同じテーマの全ページに同じ名前が付く
+    assert.deepEqual(manifest.pages.map((item) => item.streamChip), ['新機能リリース', '新機能リリース', '週次レポート', 'd']);
     assert.equal(manifest.shelf[0].title, '新機能リリース');
   } finally {
     console.warn = original;
   }
-  // 見出しはあるのにチップ名が無いテーマは警告するが、ビルドは止めない
-  assert.equal(warnings.length, 1);
-  assert.match(warnings[0], /が無いテーマ: weekly$/);
+  // 見出しの無いテーマと、見出しはあるのにチップ名が無いテーマは警告するが、ビルドは止めない
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /streamLabel（一覧の見出し）が無いテーマ: misc（仮の見出し「d」）$/);
+  assert.match(warnings[1], /が無いテーマ: weekly$/);
 });
 
 test('uses the bundled card image unless the config opts out or overrides it', () => {
@@ -271,4 +272,20 @@ test('adds nothing when link previews are not configured', () => {
   );
   const bundled = bundleHtml(path.join(root, 'page.html'), [realpathSync(root)], 1024);
   assert.doesNotMatch(bundled, /og:/);
+});
+
+test('テーマに見出しが無いときは、キーでなく一番古いページの題名を仮の見出しにする', () => {
+  const { labels, warnings } = resolveStreamLabels([
+    { stream: 'release', streamLabel: '新機能リリース', title: 'リリース告知｜下書き', updatedAt: '2026-03-02T00:00:00Z' },
+    { stream: 'release', title: 'リリース告知｜第2版', updatedAt: '2026-03-01T00:00:00Z' },
+    { stream: 'vendor-review', title: 'ベンダー比較｜第2回', updatedAt: '2026-03-05T00:00:00Z' },
+    { stream: 'vendor-review', title: 'ベンダー選定の観点｜初回', updatedAt: '2026-03-01T00:00:00Z' },
+    { stream: 'untitled', title: '', updatedAt: '2026-03-01T00:00:00Z' },
+  ]);
+  assert.equal(labels.get('release'), '新機能リリース');
+  assert.equal(labels.get('vendor-review'), 'ベンダー選定の観点');
+  assert.equal(labels.get('untitled'), 'untitled');
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0], /vendor-review/);
+  assert.doesNotMatch(warnings[0], /release（/);
 });

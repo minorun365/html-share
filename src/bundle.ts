@@ -238,6 +238,37 @@ export function resolveStreamChips(sources: StreamChipSource[]): { chips: Map<st
   return { chips, warnings };
 }
 
+/**
+ * テーマごとの見出しを決める。同じテーマで最初に書かれた streamLabel を使う。
+ * どのページにも streamLabel が無いテーマは、テーマキー（英字の識別子）を一覧に出さず、
+ * そのテーマで一番古いページの題名（「｜」「|」より前）を仮の見出しにして警告する。
+ * 一番古いページを選ぶのは、ページを足すたびに見出しが変わらないようにするため
+ */
+export function resolveStreamLabels(
+  pages: { stream: string; streamLabel?: string; title: string; updatedAt: string }[],
+): { labels: Map<string, string>; warnings: string[] } {
+  const labels = new Map<string, string>();
+  for (const page of pages) {
+    if (page.streamLabel && !labels.has(page.stream)) labels.set(page.stream, page.streamLabel);
+  }
+  const unlabeled: string[] = [];
+  const oldest = new Map<string, { title: string; updatedAt: string }>();
+  for (const page of pages) {
+    if (labels.has(page.stream)) continue;
+    const current = oldest.get(page.stream);
+    if (!current || page.updatedAt < current.updatedAt) oldest.set(page.stream, page);
+  }
+  for (const [stream, page] of oldest) {
+    const label = page.title.split(/[｜|]/)[0].trim() || stream;
+    labels.set(stream, label);
+    unlabeled.push(`${stream}（仮の見出し「${label}」）`);
+  }
+  const warnings = unlabeled.length > 0
+    ? [`content.pages: streamLabel（一覧の見出し）が無いテーマ: ${unlabeled.join(' / ')}`]
+    : [];
+  return { labels, warnings };
+}
+
 export function slugify(value: string): string {
   const normalized = value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
   return normalized || `page-${createHash('sha256').update(value).digest('hex').slice(0, 8)}`;
@@ -452,16 +483,25 @@ export function buildSite(config: HtmlShareConfig, buildRoot: string, now = new 
       },
     };
   });
+  const { labels, warnings: labelWarnings } = resolveStreamLabels(drafts.map(({ page, built }) => ({
+    stream: built.stream,
+    streamLabel: page.streamLabel,
+    title: built.title,
+    updatedAt: built.updatedAt,
+  })));
   const { chips, warnings } = resolveStreamChips(drafts.map(({ page, built }) => ({
     stream: built.stream,
     streamLabel: page.streamLabel,
     streamChip: page.streamChip,
   })));
-  for (const warning of warnings) console.warn(warning);
-  const resolved = drafts.map((draft) => ({
-    ...draft,
-    built: { ...draft.built, streamChip: chips.get(draft.built.stream) ?? draft.built.streamLabel } as BuiltPage,
-  }));
+  for (const warning of [...labelWarnings, ...warnings]) console.warn(warning);
+  const resolved = drafts.map((draft) => {
+    const streamLabel = labels.get(draft.built.stream) ?? draft.built.stream;
+    return {
+      ...draft,
+      built: { ...draft.built, streamLabel, streamChip: chips.get(draft.built.stream) ?? streamLabel } as BuiltPage,
+    };
+  });
   const streamDues = config.content.streamDues ?? {};
 
   // 保持期限：retainDays を過ぎ、続ける理由（keep の日付・進行中フィルターのテーマ）が無いページは保管庫へ
