@@ -190,3 +190,16 @@ Typical causes of the issues these checks find, and fixes:
 ## Checking transitions in a background tab
 
 Background tabs do not advance CSS transitions, so `getComputedStyle` returns the starting value. Set `style.transition = 'none'` on the element before reading the final value.
+
+## Spacing inside cards and cells
+
+Whenever you place an element inside a frame (an illustration in a card, a badge in a table cell), print the gaps as numbers before you look at a screenshot. A screenshot alone lets a card with a tight top and a loose bottom pass as "it fits".
+
+- Measure in the real renderer. For content another service renders (a repository README, a post on a publishing site), open the live page in headless Chrome, swap in your converted HTML, and measure there. A stylesheet you wrote to imitate it gets heading margins and cell padding wrong.
+- Per frame, print six numbers on one line: top, bottom, left, right, the offset between the tops of elements that sit side by side, and the narrowest gap between the element and the text. Use `getBoundingClientRect()` for boxes and `Range.getClientRects()` for text.
+- Pass when top and bottom match within 4px, side-by-side tops line up, and the element stays at least 14px from the text. An element in a corner keeps the same distance from both edges of that corner.
+- Cells in one row share a height, so the cell with less text gets extra space at the bottom. If that exceeds one line, pair up items with similar amounts of text.
+- A margin the renderer fixes cannot be changed, so match the opposite side to it.
+- Trim images to their visible pixels before placing them on a shared canvas. Transparent borders differ per image and make the distance from the frame uneven.
+- After adding an element that narrows the text, check that no paragraph or title ends with one or two characters alone on the last line.
+- Keep the measurement as a script next to the deliverable and show the page only when it reports zero failures.
