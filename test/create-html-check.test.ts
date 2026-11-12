@@ -55,6 +55,12 @@ test('a page can opt out of the figure check explicitly', () => {
   assert.ok(!checkHtml(noFigure).ng.some((line: string) => line.includes('no figure')));
 });
 
+test('warns when half or more of the sections have no figure', () => {
+  const textSection = (n: number) => `<section id="t${n}"><h2>Text only ${n}</h2><p>Plain text.</p></section>`;
+  const html = filled.replace('<footer>', [1, 2, 3, 4, 5, 6].map(textSection).join('') + '<footer>');
+  assert.ok(checkHtml(html).warn.some((line: string) => line.includes('have no figure')));
+});
+
 const breads = ['Sourdough', 'Rye', 'Baguette', 'Brioche', 'Ciabatta', 'Focaccia', 'Bagel', 'Croissant', 'Pretzel', 'Challah'];
 const insertInSection2 = (html: string, markup: string) => html.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`);
 

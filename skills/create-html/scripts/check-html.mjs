@@ -154,6 +154,14 @@ export function checkHtml(source, { baseDir } = {}) {
   if (!optOut && !has(/<svg\b/i) && !has(/<img\b/i)) ng.push('no figure on the page; draw the comparisons, flows, breakdowns, or structure (pages that need none: <meta name="brief-figures" content="none">)');
 
   // Review items, not defects.
+  // A handful of figures with the rest in text cards still reads as text-heavy, so name the sections without one.
+  const sections = body.split(/<section\b/i).slice(1);
+  const bare = sections
+    .filter((sec) => !/<svg\b|<img\b/i.test(sec))
+    .map((sec, i) => (sec.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i)?.[1] ?? `section ${i + 1}`).replace(/<[^>]+>/g, '').trim().slice(0, 30));
+  if (!optOut && sections.length >= 3 && bare.length * 2 >= sections.length) {
+    warn.push(`${bare.length} of ${sections.length} sections have no figure (${bare.join(', ')}); redraw their cards or lists as a flow, contrast, or breakdown`);
+  }
   const tables = (source.match(/<table\b/gi) ?? []).length;
   if (tables > 5) warn.push(`${tables} tables; more than five usually means the structure, not the content, is heavy`);
   // Busy sections: a long table or list usually means rows were appended after each round of feedback.
