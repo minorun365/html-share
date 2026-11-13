@@ -74,6 +74,12 @@ test('warns when two or more paragraphs follow one figure', () => {
   assert.ok(checkHtml(html).warn.some((line: string) => line.includes('two or more paragraphs follow a figure')));
 });
 
+test('warns about a heading with a parenthetical but allows weekday marks', () => {
+  const add = (markup: string) => filled.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`);
+  assert.ok(checkHtml(add('<h3>Morning batch (two trays, 04:10)</h3>')).warn.some((line: string) => line.includes('carry a parenthetical')));
+  assert.ok(!checkHtml(add('<h3>11/13（金）の仕込み</h3>')).warn.some((line: string) => line.includes('carry a parenthetical')));
+});
+
 test('warns about a long paragraph with no break', () => {
   const sentence = 'パン屋の朝は早く、四時には窯に火が入ります。';
   const long = `<p>${sentence.repeat(10)}</p>`;

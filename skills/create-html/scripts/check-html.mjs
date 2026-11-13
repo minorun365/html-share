@@ -176,6 +176,11 @@ export function checkHtml(source, { baseDir } = {}) {
     .filter((m) => (m[1].match(/<p\b/gi) ?? []).length >= 2)
     .map((m) => sectionAt(body, m.index));
   if (heavy.length) warn.push(`two or more paragraphs follow a figure (${heavy.join(', ')}); keep one paragraph of two or three sentences per figure`);
+  // A heading or card title with a parenthetical tacked on is hard to scan; weekday marks such as （金） are fine.
+  const parenHeads = [...body.matchAll(/<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)]
+    .map((m) => m[2].replace(/<[^>]+>/g, '').replace(/[（(][月火水木金土日祝・]+[）)]/g, '').trim())
+    .filter((text) => /[（(]/.test(text));
+  if (parenHeads.length) warn.push(`${parenHeads.length} heading(s) carry a parenthetical ("${parenHeads[0].slice(0, 30)}"); keep the title to one short phrase and move the detail into the text`);
   // A long paragraph with no break is hard to read, above all in Japanese: split it every two sentences or so.
   const unbroken = [...body.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
     .map((m) => ({ index: m.index, text: m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim() }))
