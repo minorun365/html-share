@@ -176,6 +176,16 @@ export function checkHtml(source, { baseDir } = {}) {
     .filter((m) => (m[1].match(/<p\b/gi) ?? []).length >= 2)
     .map((m) => sectionAt(body, m.index));
   if (heavy.length) warn.push(`two or more paragraphs follow a figure (${heavy.join(', ')}); keep one paragraph of two or three sentences per figure`);
+  // A long paragraph with no break is hard to read, above all in Japanese: split it every two sentences or so.
+  const unbroken = [...body.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((m) => ({ index: m.index, text: m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim() }))
+    .filter(({ text }) => {
+      if (text.includes('\n')) return false;
+      const cjk = /[\u3040-\u30ff\u4e00-\u9fff]/.test(text);
+      const sentences = (text.match(/。|[.!?](?=\s|$)/g) ?? []).length;
+      return cjk ? text.length >= 200 && sentences >= 4 : text.length >= 600 && sentences >= 5;
+    });
+  if (unbroken.length) warn.push(`${unbroken.length} long paragraph(s) with no break (first one in "${sectionAt(body, unbroken[0].index)}"); split each into paragraphs of about two sentences`);
   const tables = (source.match(/<table\b/gi) ?? []).length;
   if (tables > 5) warn.push(`${tables} tables; more than five usually means the structure, not the content, is heavy`);
   // Busy sections: a long table or list usually means rows were appended after each round of feedback.

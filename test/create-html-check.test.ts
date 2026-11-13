@@ -74,6 +74,16 @@ test('warns when two or more paragraphs follow one figure', () => {
   assert.ok(checkHtml(html).warn.some((line: string) => line.includes('two or more paragraphs follow a figure')));
 });
 
+test('warns about a long paragraph with no break', () => {
+  const sentence = 'パン屋の朝は早く、四時には窯に火が入ります。';
+  const long = `<p>${sentence.repeat(10)}</p>`;
+  const html = filled.replace('<div class="table-wrap">', `${long}<div class="table-wrap">`);
+  assert.ok(checkHtml(html).warn.some((line: string) => line.includes('long paragraph(s) with no break')));
+  const split = `<p>${sentence.repeat(2)}</p>`.repeat(5);
+  const ok = filled.replace('<div class="table-wrap">', `${split}<div class="table-wrap">`);
+  assert.ok(!checkHtml(ok).warn.some((line: string) => line.includes('long paragraph(s) with no break')));
+});
+
 const breads = ['Sourdough', 'Rye', 'Baguette', 'Brioche', 'Ciabatta', 'Focaccia', 'Bagel', 'Croissant', 'Pretzel', 'Challah'];
 const insertInSection2 = (html: string, markup: string) => html.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`);
 
