@@ -85,6 +85,7 @@ For a page shown on screen during a conversation, use one column read from top t
 When the page is scrolled through together with the other party:
 
 - Open items taken from an earlier meeting, or a plan you proposed, as a check ("is this still how you see it?"), labeled with their source and date. Do not state them as the other party's facts or goals.
+- Title each item to discuss as a short issue ("whether to …", "which … to use"; in Japanese, a phrase ending in 〜か), not as a polite full question. The same polite ending repeated on every item reads as heavy; courtesy belongs in the note under the title and in what is said aloud.
 - Do not add note-taking fields. Notes are taken outside the page.
 - Leave out topics that are outside the meeting's purpose; they take time from the questions the meeting is for.
 
