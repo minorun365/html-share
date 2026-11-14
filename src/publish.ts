@@ -1,5 +1,6 @@
 import {
   DeleteObjectsCommand,
+  GetObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -151,6 +152,48 @@ export function hasUnpulledConfigChanges(
   }
 }
 
+type ListedPage = { slug?: string; objectKey?: string; date?: string };
+type PageList = { pages?: ListedPage[]; archived?: ListedPage[] };
+
+/**
+ * Keep pages that another device published but this one has not pulled yet.
+ *
+ *   The page list is rebuilt from the local config on every publish. When the upstream has
+ *   unpulled changes, pages are uploaded without removing anything, but the rebuilt list would
+ *   still drop the pages this device does not know about: they stay reachable by URL yet vanish
+ *   from the dashboard. This adds them back from the list currently in the bucket, as long as
+ *   their content object still exists. Returns the slugs it added.
+ */
+export function mergeRemotePages(local: PageList, remote: PageList | null, contentKeys: Set<string>): string[] {
+  const lists = { pages: (local.pages ??= []), archived: (local.archived ??= []) };
+  const known = new Set([...lists.pages, ...lists.archived].map((page) => page.slug));
+  const added: string[] = [];
+  for (const listName of ['pages', 'archived'] as const) {
+    for (const item of remote?.[listName] ?? []) {
+      if (!item?.slug || known.has(item.slug)) continue;
+      if (listName === 'pages' && (!item.objectKey || !contentKeys.has(item.objectKey))) continue;
+      lists[listName].push(item);
+      known.add(item.slug);
+      added.push(item.slug);
+    }
+  }
+  if (added.length > 0) {
+    for (const listName of ['pages', 'archived'] as const) {
+      lists[listName].sort((a, b) => String(b.date ?? '').localeCompare(String(a.date ?? '')));
+    }
+  }
+  return added;
+}
+
+async function readRemoteJson(client: S3Client, bucket: string, key: string): Promise<PageList | null> {
+  try {
+    const object = await client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
+    return JSON.parse(await object.Body!.transformToString()) as PageList;
+  } catch {
+    return null;
+  }
+}
+
 async function syncTree(client: S3Client, bucket: string, root: string, expectedRemovals = 0, allowDelete = true): Promise<void> {
   const remote = await remoteObjects(client, bucket);
   const local = files(root);
@@ -293,6 +336,18 @@ export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: st
       console.warn('The page list has changes upstream that are not pulled yet (or the upstream could not be checked). Uploading without removing pages; pull and publish again to clean up.');
     }
     await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'), manifest.archived.length, allowDelete);
+    if (!allowDelete) {
+      // Uploading without removals: keep the other devices' pages in the dashboard list too
+      const listFile = path.join(buildRoot, 'console', 'app', 'manifest.json');
+      const local = JSON.parse(readFileSync(listFile, 'utf8')) as PageList;
+      const remote = await readRemoteJson(client, outputs.ConsoleBucketName, 'app/manifest.json');
+      const contentKeys = new Set((await remoteObjects(client, outputs.ContentBucketName)).keys());
+      const kept = mergeRemotePages(local, remote, contentKeys);
+      if (kept.length > 0) {
+        writeFileSync(listFile, `${JSON.stringify(local, null, 2)}\n`);
+        console.warn(`Kept ${kept.length} page(s) from the upstream in the dashboard list: ${kept.join(', ')}`);
+      }
+    }
     await syncTree(client, outputs.ConsoleBucketName, path.join(buildRoot, 'console'));
     return {
       consoleUrl: `${outputs.ConsoleUrl}/app/index.html`,

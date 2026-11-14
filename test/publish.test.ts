@@ -5,7 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import type { BuiltPage } from '../src/bundle.js';
 import type { HtmlShareConfig } from '../src/config.js';
-import { acquirePublishLock, assertNotShrinking, buildOnly, hasUnpulledConfigChanges, matchingPages } from '../src/publish.js';
+import { acquirePublishLock, assertNotShrinking, buildOnly, hasUnpulledConfigChanges, matchingPages, mergeRemotePages } from '../src/publish.js';
 
 function page(slug: string, title = slug): BuiltPage {
   return {
@@ -116,4 +116,24 @@ test('stops deleting when the upstream added pages that are not pulled yet', () 
 
 test('stops deleting when the upstream cannot be fetched', () => {
   assert.equal(hasUnpulledConfigChanges('/repo/html-share.config.yaml', fakeGit({ fetch: new Error('offline') })), true);
+});
+
+test('keeps pages another device published when uploading without removals', () => {
+  const local = { pages: [{ slug: 'mine', objectKey: 'pages/mine/index.html', date: '2026-01-01' }], archived: [] };
+  const remote = {
+    pages: [
+      { slug: 'mine', objectKey: 'pages/mine/index.html', date: '2026-01-01' },
+      { slug: 'from-laptop', objectKey: 'pages/from-laptop/index.html', date: '2026-01-03' },
+      { slug: 'removed', objectKey: 'pages/removed/index.html', date: '2026-01-02' },
+    ],
+    archived: [{ slug: 'old', date: '2025-01-01' }],
+  };
+  const added = mergeRemotePages(local, remote, new Set(['pages/mine/index.html', 'pages/from-laptop/index.html']));
+  assert.deepEqual(added, ['from-laptop', 'old']);
+  assert.deepEqual(local.pages.map((page) => page.slug), ['from-laptop', 'mine']);
+});
+
+test('does not add pages back when the bucket list cannot be read', () => {
+  const local = { pages: [], archived: [] };
+  assert.deepEqual(mergeRemotePages(local, null, new Set()), []);
 });
