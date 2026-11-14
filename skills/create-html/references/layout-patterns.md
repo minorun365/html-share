@@ -133,7 +133,9 @@ For two to five days shown with times (an itinerary, an event day), draw columns
 - Scope events as `.gc-col .ev`. A bare `.ev { position: absolute }` also hits a monthly calendar chip with the same class and stretches it across the grid.
 - Paint background zones with opaque colors, not `rgba()`, so contrast checks match what the eye sees.
 - Across time zones, use the local time of where the person is and note the other zone inside the block.
-- Keep all day columns on phones by narrowing the time column and the event font.
+- Never clip the text inside a block. Sizing blocks by time alone with `overflow: hidden` cuts off the titles of 15- to 30-minute items and of items in narrow columns. After rendering, measure each block's content height and extend the block downward to fit, move any blocks that now collide into side-by-side lanes, and repeat until nothing changes (only ever grow heights, so the loop settles). Use `overflow-wrap: break-word`, not `anywhere`, so words do not break mid-word.
+- When a day column would drop below about 140 px (seven days on a laptop window, or any multi-day view on a phone), switch to a one-day view with date tabs instead of squeezing the columns. In the multi-day view, leave out secondary blocks such as cancelled items and list them under each day instead, so lanes stay at two or fewer.
+- Check: zero blocks with `scrollHeight > clientHeight` or `scrollWidth > clientWidth`, and zero overlapping block rectangles.
 
 ## Schedule coordination
 
