@@ -1,3 +1,30 @@
+// ── PCの広い画面では、本文の幅の上限を広げる ─────────────────────────
+// 各ページは本文を .wrap{max-width:940px} のように頭打ちにしていて、そのままだと
+// ウィンドウを横へ伸ばしても左右の余白が増えるだけになる。上限を「元の値」と
+// 「画面幅−左右の余白（最大 WIDE_CAP）」の大きいほうへ置き換える。
+// 画面が狭いうちは元の値が勝つので、見た目は変わらない。
+// このファイルに置くのは、全ページが既に読んでいる共通スクリプトだから。
+// 新しいファイルにすると、配信済みの全ページを作り直して上げ直すことになる。
+(() => {
+  const WIDE_CAP = 1220;   // これ以上は1行が長すぎて読みにくい
+  const SIDE_ROOM = 160;   // 広がっている間も残す左右の余白の合計
+  const widen = () => {
+    const targets = document.querySelectorAll(
+      '.wrap, .hero-in, body > main, body > article, body > .container, body > .page',
+    );
+    for (const el of targets) {
+      if (el.dataset.mbWide) continue;
+      const max = parseFloat(getComputedStyle(el).maxWidth);
+      // 上限が無い要素と、狭い囲み（わざと細くしてある）は触らない
+      if (!Number.isFinite(max) || max < 800 || max >= WIDE_CAP) continue;
+      el.dataset.mbWide = String(max);
+      el.style.maxWidth = `max(${max}px, min(${WIDE_CAP}px, calc(100vw - ${SIDE_ROOM}px)))`;
+    }
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', widen);
+  else widen();
+})();
+
 (() => {
   // スマホ幅のときだけ働く。PCでは1行も触らず、元のHTMLの見た目をそのまま残す。
   const narrow = matchMedia('(max-width: 46rem)');
