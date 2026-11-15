@@ -312,8 +312,61 @@ test('does not throw when the page frame is on another origin', () => {
 test('lists archived pages behind a toggle and asks the inbox to revive them', () => {
   const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
   assert.match(dashboard, /<button id="archive-toggle" type="button">/, '保管庫の入口は削除済みと並べて一覧の末尾に置く');
-  assert.match(dashboard, /archivedPages = \[\.\.\.\(data\.archived \?\? \[\]\)\]/, 'manifest.archived から保管庫を読む');
+  assert.match(dashboard, /archivedPages = \[\.\.\.\(data\.archived \?\? \[\]\)\]/, 'archive.json の archived から保管庫を読む');
+  assert.match(dashboard, /fetch\('archive\.json'/, '保管庫の行は archive.json から取る');
+  assert.match(dashboard, /addEventListener\('click', async \(\) => \{\s*if \(!showingArchive\) \{[\s\S]{0,120}await loadArchive\(\)/, '保管庫を開いたときにだけ取る');
+  assert.match(dashboard, /保管庫 \$\{archivedCount\}件/, 'トップの件数は list.json の archivedCount から出す');
   assert.match(dashboard, /function archiveRow\(page\)[\s\S]{0,400}document\.createElement\('div'\)/, '保管庫の行は開けないので a にしない');
   assert.match(dashboard, /html-share page revive \$\{page\.slug\}/, '戻すコマンドを依頼文に入れる');
   assert.match(dashboard, /fetch\('\/api\/owner\/reviews', \{[\s\S]{0,200}'x-amz-content-sha256': await sha256\(body\)/, '依頼の POST に本文のハッシュを付ける');
+});
+
+test('reads the slim list for the top page and keeps the full manifest for publish', () => {
+  const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
+  const shell = readFileSync(path.join(root, 'web', 'mobile-page-shell.js'), 'utf8');
+  assert.match(dashboard, /new URL\('list\.json', location\.href\)/);
+  assert.doesNotMatch(dashboard, /fetch\('manifest\.json'/, 'トップは保管庫を含む manifest.json を読まない');
+  assert.match(shell, /fetch\('\/app\/list\.json'/);
+  assert.doesNotMatch(shell, /\/app\/manifest\.json/);
+});
+
+test('renders first from the last list kept in a dedicated cache, then refreshes', () => {
+  const dashboard = readFileSync(path.join(root, 'web', 'app', 'index.html'), 'utf8');
+  assert.match(dashboard, /caches\.open\(BOOT_CACHE\)\)\.match\(LIST_URL\)/, '前回の一覧を写しから読む');
+  assert.match(dashboard, /cache\.put\(LIST_URL, new Response\(text/, '取れた最新の一覧を写しに残す');
+  // 写しで描いている間は本人設定を整理も送信もしない（loadPreferences を呼ばない・リモート保存を止める）
+  const boot = dashboard.match(/readBootCopy\(\)\.then\(\(copy\) => \{[\s\S]*?\n {2}\}\);/)?.[0];
+  assert.ok(boot, '写しで描く処理がありません');
+  assert.doesNotMatch(boot, /loadPreferences|saveLocalPreferences|persistPreferencesRemote|queuePreferenceSave/);
+  assert.match(boot, /onBootCopy = true/);
+  assert.match(dashboard, /if \(onBootCopy\) return;/, '写しの間はサーバーへ書き戻さない');
+  assert.match(dashboard, /if \(bootRendered\) rerenderKeepingScroll\(\)/, '最新が着いたら位置を保って描き直す');
+  // 起動時の本人設定の書き戻しは描画を待たせない
+  const load = dashboard.match(/async function loadPreferences\(\) \{[\s\S]*?\n {2}\}\n/)?.[0];
+  assert.ok(load, 'loadPreferences がありません');
+  assert.doesNotMatch(load, /await persistPreferencesRemote\(\)/);
+});
+
+test('compresses responses from the buckets without caching them', () => {
+  const stack = readFileSync(path.join(root, 'infra', 'lib', 'html-share-stack.ts'), 'utf8');
+  const policy = stack.match(/new cloudfront\.CachePolicy\(this, 'SiteCachePolicy', \{[\s\S]*?\n {4}\}\);/)?.[0];
+  assert.ok(policy, '圧縮するキャッシュポリシーがありません');
+  assert.match(policy, /defaultTtl: Duration\.seconds\(0\)/);
+  assert.match(policy, /maxTtl: Duration\.seconds\(1\)/, 'TTLがすべて0だと圧縮の設定を受け付けない');
+  assert.match(policy, /enableAcceptEncodingGzip: true/);
+  assert.match(policy, /enableAcceptEncodingBrotli: true/);
+  assert.match(policy, /cookieBehavior: cloudfront\.CacheCookieBehavior\.none\(\)/);
+  // S3 から配る配信はすべて圧縮のポリシー、Lambda（Cookie で応答が変わる）は CachingDisabled のまま
+  const behavior = (name: string) => {
+    const at = stack.indexOf(`'${name}': {`);
+    assert.ok(at >= 0, `${name} の配信ルールがありません`);
+    return stack.slice(at, stack.indexOf('\n        },', at));
+  };
+  for (const name of ['og/*', 'app/*', 'review/*']) {
+    assert.match(behavior(name), /cachePolicy: siteCachePolicy|\.\.\.site,/, `${name} が圧縮されません`);
+  }
+  for (const name of ['auth/*', 'api/owner/*', 'api/device/*', 'api/pairings/*']) {
+    assert.match(behavior(name), /\.\.\.common,/, `${name} は CachingDisabled のまま`);
+  }
+  assert.match(stack, /const common = \{[\s\S]{0,120}cachePolicy: cloudfront\.CachePolicy\.CACHING_DISABLED/);
 });

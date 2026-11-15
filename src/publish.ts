@@ -38,6 +38,33 @@ function files(root: string, current = root): string[] {
   });
 }
 
+/**
+ * 一覧画面が読む JSON を、一覧の台帳（manifest.json）から切り出す。
+ *
+ *   list.json    … トップを描くのに要る分だけ。保管庫は件数（archivedCount）だけを持つ
+ *   archive.json … 保管庫の行。画面で「保管庫」を開いたときにだけ取る
+ *
+ * 保管庫は長く使うほど増え続け、トップを開くたびに運ぶ理由が無いので分ける。
+ * manifest.json は publish の受け継ぎ（mergeRemotePages）が読む台帳として形を変えずに残す。
+ */
+export function consoleListViews(manifest: object): { list: string; archive: string } {
+  const { archived = [], ...rest } = manifest as { archived?: unknown[] };
+  return {
+    list: `${JSON.stringify({ ...rest, archivedCount: archived.length })}\n`,
+    // generatedAt を持たせない。保管庫が変わらなければファイルも変わらず、送り直しも起きない
+    archive: `${JSON.stringify({ archived })}\n`,
+  };
+}
+
+/** app/ に manifest.json と、画面用の list.json・archive.json をそろえて書く。台帳を書き換えたら必ずこれを通す */
+export function writeConsoleList(appDir: string, manifest: object): void {
+  mkdirSync(appDir, { recursive: true });
+  writeFileSync(path.join(appDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  const views = consoleListViews(manifest);
+  writeFileSync(path.join(appDir, 'list.json'), views.list);
+  writeFileSync(path.join(appDir, 'archive.json'), views.archive);
+}
+
 function copyConsole(buildRoot: string, manifest: object, config: HtmlShareConfig): void {
   const consoleRoot = path.join(buildRoot, 'console');
   mkdirSync(consoleRoot, { recursive: true });
@@ -61,8 +88,7 @@ function copyConsole(buildRoot: string, manifest: object, config: HtmlShareConfi
       writeFileSync(target, readFileSync(path.join(iconsDir, name)));
     }
   }
-  mkdirSync(path.join(consoleRoot, 'app'), { recursive: true });
-  writeFileSync(path.join(consoleRoot, 'app', 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  writeConsoleList(path.join(consoleRoot, 'app'), manifest);
   writeFileSync(path.join(consoleRoot, 'app.webmanifest'), `${JSON.stringify({
     name: 'HTML共有くん',
     short_name: '共有くん',
@@ -344,13 +370,14 @@ export async function publish(config: HtmlShareConfig): Promise<{ consoleUrl: st
     await syncTree(client, outputs.ContentBucketName, path.join(buildRoot, 'content'), manifest.archived.length, allowDelete);
     if (!allowDelete) {
       // Uploading without removals: keep the other devices' pages in the dashboard list too
-      const listFile = path.join(buildRoot, 'console', 'app', 'manifest.json');
-      const local = JSON.parse(readFileSync(listFile, 'utf8')) as PageList;
+      const appDir = path.join(buildRoot, 'console', 'app');
+      const local = JSON.parse(readFileSync(path.join(appDir, 'manifest.json'), 'utf8')) as PageList;
       const remote = await readRemoteJson(client, outputs.ConsoleBucketName, 'app/manifest.json');
       const contentKeys = new Set((await remoteObjects(client, outputs.ContentBucketName)).keys());
       const kept = mergeRemotePages(local, remote, contentKeys);
       if (kept.length > 0) {
-        writeFileSync(listFile, `${JSON.stringify(local, null, 2)}\n`);
+        // 画面が読む list.json・archive.json も、足し戻した後の一覧から作り直す
+        writeConsoleList(appDir, local);
         console.warn(`Kept ${kept.length} page(s) from the upstream in the dashboard list: ${kept.join(', ')}`);
       }
     }

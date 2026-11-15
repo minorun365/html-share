@@ -5,7 +5,10 @@ import path from 'node:path';
 import test from 'node:test';
 import type { BuiltPage } from '../src/bundle.js';
 import type { HtmlShareConfig } from '../src/config.js';
-import { acquirePublishLock, assertNotShrinking, buildOnly, hasUnpulledConfigChanges, matchingPages, mergeRemotePages } from '../src/publish.js';
+import {
+  acquirePublishLock, assertNotShrinking, buildOnly, consoleListViews, hasUnpulledConfigChanges, matchingPages, mergeRemotePages,
+  writeConsoleList,
+} from '../src/publish.js';
 
 function page(slug: string, title = slug): BuiltPage {
   return {
@@ -136,4 +139,40 @@ test('keeps pages another device published when uploading without removals', () 
 test('does not add pages back when the bucket list cannot be read', () => {
   const local = { pages: [], archived: [] };
   assert.deepEqual(mergeRemotePages(local, null, new Set()), []);
+});
+
+test('splits the dashboard list into the top list and the archive', () => {
+  const manifest = {
+    generatedAt: '2026-01-05T00:00:00.000Z',
+    internalSharing: false,
+    pages: [{ slug: 'current', title: 'Current page' }],
+    archived: [{ slug: 'old-1', title: 'Old page 1' }, { slug: 'old-2', title: 'Old page 2' }],
+    shelf: [],
+  };
+  const views = consoleListViews(manifest);
+  const list = JSON.parse(views.list);
+  assert.equal(list.archived, undefined, 'list.json は保管庫の行を持たない');
+  assert.equal(list.archivedCount, 2);
+  assert.deepEqual(list.pages, manifest.pages);
+  assert.equal(list.generatedAt, manifest.generatedAt);
+  assert.ok(Buffer.byteLength(views.list) < Buffer.byteLength(JSON.stringify(manifest)), 'list.json は保管庫の分だけ小さい');
+  assert.doesNotMatch(views.list, /old-1/);
+  const archive = JSON.parse(views.archive);
+  assert.deepEqual(archive, { archived: manifest.archived });
+  assert.equal(archive.generatedAt, undefined, '保管庫が同じならファイルも同じになる');
+  assert.equal(consoleListViews({ ...manifest, generatedAt: 'later' }).archive, views.archive);
+  assert.equal(JSON.parse(consoleListViews({ pages: [] }).list).archivedCount, 0);
+});
+
+test('writes the full manifest and both views side by side, and rewrites them after a merge', () => {
+  const appDir = path.join(mkdtempSync(path.join(tmpdir(), 'html-share-views-')), 'app');
+  const local = { pages: [{ slug: 'mine', objectKey: 'pages/mine/index.html', date: '2026-01-01' }], archived: [] };
+  writeConsoleList(appDir, local);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(appDir, 'manifest.json'), 'utf8')), local);
+  assert.equal(JSON.parse(readFileSync(path.join(appDir, 'list.json'), 'utf8')).archivedCount, 0);
+  mergeRemotePages(local, { pages: [], archived: [{ slug: 'old', date: '2025-01-01' }] }, new Set());
+  writeConsoleList(appDir, local);
+  assert.equal(JSON.parse(readFileSync(path.join(appDir, 'list.json'), 'utf8')).archivedCount, 1);
+  assert.deepEqual(JSON.parse(readFileSync(path.join(appDir, 'archive.json'), 'utf8')).archived.map((item: { slug: string }) => item.slug), ['old']);
+  assert.equal(JSON.parse(readFileSync(path.join(appDir, 'manifest.json'), 'utf8')).archived.length, 1, 'manifest.json は台帳として保管庫も持つ');
 });

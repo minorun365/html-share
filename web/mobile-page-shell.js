@@ -501,7 +501,7 @@
   readMarksFromStorage();
   const hadLocalReadMarks = knowsReadMarks;
 
-  fetch('/app/manifest.json', { cache: 'no-store' }).then((response) => response.json()).then(async (manifest) => {
+  fetch('/app/list.json', { cache: 'no-store' }).then((response) => response.json()).then(async (manifest) => {
     configureShareOptions(manifest);
     allPages = manifest.pages ?? [];
     const validSources = new Set(allPages.map((page) => page.source));

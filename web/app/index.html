@@ -695,8 +695,24 @@ body.page-controls-hidden #page-actions {
   let readMarks = {};
   let knowsReadMarks = false;
   let showingTrash = false;
-  // 保管庫：保持期限（content.retainDays）を過ぎて配信から外したページ（manifest.archived）。タイトルだけを持つ
-  let archivedPages = [], showingArchive = false;
+  // 保管庫：保持期限（content.retainDays）を過ぎて配信から外したページ。タイトルだけを持つ
+  // 行は archive.json に分けてあり、保管庫を開いたときにだけ取る。トップは件数（list.json の archivedCount）だけを持つ
+  let archivedPages = [], archivedCount = 0, archiveLoading = null, showingArchive = false;
+  function loadArchive() {
+    archiveLoading ??= fetch('archive.json', { cache: 'no-store' })
+      .then((response) => (response.ok ? response.json() : Promise.reject(new Error(`archive.json ${response.status}`))))
+      .then((data) => {
+        archivedPages = [...(data.archived ?? [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+        archivedCount = archivedPages.length;
+      })
+      .catch((error) => {
+        archiveLoading = null; // 次に押したときに取り直す
+        throw error;
+      });
+    return archiveLoading;
+  }
+  // 手元の写し（前回の一覧）で描いている間は true。本人設定はまだサーバーの値と合わせていないので、サーバーへ書き戻さない
+  let onBootCopy = false;
   let filterText = '';
   let preferenceSaveTimer = null;
   // テーマ内で最初に見せる件数と、「他N件を表示」で開いたテーマのキー
@@ -837,6 +853,7 @@ body.page-controls-hidden #page-actions {
   function queuePreferenceSave() {
     saveLocalPreferences();
     if (!CAN_SYNC) return;
+    if (onBootCopy) return; // 最新の一覧が着いたら loadPreferences がサーバーの値と合わせて送る
     clearTimeout(preferenceSaveTimer);
     preferenceSaveTimer = setTimeout(() => {
       persistPreferencesRemote().catch((error) => console.warn(error));
@@ -892,11 +909,12 @@ body.page-controls-hidden #page-actions {
         const firstRun = !hadLocalReadMarks && saved.readMarks === null;
         if (firstRun) seedReadMarks();
         saveLocalPreferences();
-        if (needsPush || firstRun) await persistPreferencesRemote();
+        // 書き戻しは描画を待たせない（失敗しても次の変更・次回の起動でまた送る）
+        if (needsPush || firstRun) persistPreferencesRemote().catch((error) => console.warn(error));
       } else {
         if (!hadLocalReadMarks) seedReadMarks();
         saveLocalPreferences();
-        await persistPreferencesRemote();
+        persistPreferencesRemote().catch((error) => console.warn(error));
       }
     } catch (error) {
       console.warn(error);
@@ -910,10 +928,10 @@ body.page-controls-hidden #page-actions {
     trashLabel.textContent = showingTrash
       ? '‹ 一覧へ戻る'
       : `削除済み ${hiddenSources.size}件 ›`;
-    archiveToggle.classList.toggle('on', archivedPages.length > 0 && !showingTrash);
+    archiveToggle.classList.toggle('on', archivedCount > 0 && !showingTrash);
     archiveLabel.textContent = showingArchive
       ? '‹ 一覧へ戻る'
-      : `保管庫 ${archivedPages.length}件 ›`;
+      : `保管庫 ${archivedCount}件 ›`;
   }
 
   /** 保管庫の1行。開けないので、戻す依頼をインボックスへ置き、手元の html-share page revive で戻す */
@@ -1820,7 +1838,17 @@ body.page-controls-hidden #page-actions {
     updateTrashToggle();
     renderHome();
   });
-  archiveToggle.addEventListener('click', () => {
+  archiveToggle.addEventListener('click', async () => {
+    if (!showingArchive) {
+      archiveLabel.textContent = '保管庫を読み込み中…';
+      try {
+        await loadArchive();
+      } catch (error) {
+        console.warn(error);
+        updateTrashToggle();
+        return;
+      }
+    }
     showingArchive = !showingArchive;
     updateTrashToggle();
     renderHome();
@@ -1846,19 +1874,83 @@ body.page-controls-hidden #page-actions {
     if (document.visibilityState === 'visible') refreshInboxDot();
   });
 
-  fetch('manifest.json', { cache: 'no-store' })
-    .then((r) => r.json())
-    .then(async (data) => {
-      meta = data;
+  // 起動は「手元の写しで先に描き、裏で最新を取って描き直す」。
+  // 一覧と本人設定の取得を順に待ってから描くと、回線の遅いスマホでは開いてから並ぶまで数秒かかる。
+  // 写しは前回取れた list.json をこの画面専用のキャッシュに置いたもの。スター・既読は localStorage の手元の値で描く。
+  // 写しで描くときは本人設定を書き換えない（古い一覧を基準に、新しいページのスターや既読を落とさないため）。
+  const BOOT_CACHE = 'html-share-boot-v1';
+  const LIST_URL = new URL('list.json', location.href).href;
+  let bootRendered = false;
+
+  function applyList(data) {
+    meta = data;
+    allPages = data.pages ?? [];
+    archivedCount = Number(data.archivedCount ?? data.archived?.length ?? 0);
+  }
+
+  // 描き直しで読んでいた位置が飛ばないよう、スクロール位置を保つ
+  function rerenderKeepingScroll() {
+    const y = scrollY;
+    select(location.hash.replace(/^#\//, ''));
+    if (y > 0) scrollTo(0, y);
+  }
+
+  async function readBootCopy() {
+    try {
+      const cached = await (await caches.open(BOOT_CACHE)).match(LIST_URL);
+      return cached ? await cached.json() : null;
+    } catch {
+      return null; // Cache API が使えない環境（http の手元プレビュー・プライベートブラウズなど）は、最新を待って描く
+    }
+  }
+
+  function saveBootCopy(text) {
+    try {
+      caches.open(BOOT_CACHE)
+        .then((cache) => cache.put(LIST_URL, new Response(text, { headers: { 'content-type': 'application/json' } })))
+        .catch(() => { /* 写しが残らないだけ。次回は最新を待って描く */ });
+    } catch { /* caches が無い環境 */ }
+  }
+
+  const latest = fetch(LIST_URL, { cache: 'no-store' }).then(async (r) => {
+    if (!r.ok) throw new Error(`list.json ${r.status}`);
+    const text = await r.text();
+    return { data: JSON.parse(text), text };
+  });
+
+  readBootCopy().then((copy) => {
+    // 最新が先に着いていたら写しは使わない。ページを名指しして開いたときは、
+    // 古い署名付きURLで開いたり既読を付けたりしないよう、最新を待つ
+    if (!copy || bootRendered || meta || location.hash.replace(/^#\//, '')) return;
+    onBootCopy = true;
+    applyList(copy);
+    pages = allPages.filter((page) => !hiddenSources.has(page.source));
+    updateTrashToggle();
+    bootRendered = true;
+    select('');
+  });
+
+  latest
+    .then(async ({ data, text }) => {
+      applyList(data);
+      // 共有の選択肢は項目を取り除いて作るので、写しではなく最新の一覧から1回だけ組む
       configureShareOptions(data);
-      allPages = data.pages ?? [];
-      archivedPages = [...(data.archived ?? [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      saveBootCopy(text);
+      // 保管庫を開いたまま描き直すなら、行も取り直す（件数と行がずれないように）
+      if (showingArchive) {
+        archiveLoading = null;
+        await loadArchive().catch((error) => console.warn(error));
+      }
       await loadPreferences();
-      select(location.hash.replace(/^#\//, ''));
+      onBootCopy = false;
+      if (bootRendered) rerenderKeepingScroll();
+      else select(location.hash.replace(/^#\//, ''));
+      bootRendered = true;
       refreshInboxDot();
     })
     .catch((err) => {
-      tilesEl.textContent = '一覧の読み込みに失敗しました';
+      // 写しで描いたまま最新が取れなかったときは、onBootCopy を立てたままにする（手元の設定でサーバーを上書きしない）
+      if (!bootRendered) tilesEl.textContent = '一覧の読み込みに失敗しました';
       console.error(err);
     });
 })();

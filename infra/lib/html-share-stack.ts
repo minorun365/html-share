@@ -128,6 +128,25 @@ export class HtmlShareStack extends Stack {
       comment: 'HTML Share trusted signers',
     });
 
+    // 既定の CachingDisabled は圧縮も止める（gzip・brotli を受け付けない）。compress: true と書いても
+    // 圧縮されず、ページや一覧の JSON がそのままの大きさで流れる。そこで S3 から配る分だけ、
+    // キャッシュはしないが圧縮はするポリシーに替える。
+    // 既定のTTLを0にしておけば、Cache-Control の無いオブジェクトも no-store のオブジェクトもエッジに残らない。
+    // 最大TTLを1秒にしているのは、TTLがすべて0だと圧縮の設定を受け付けないため。
+    // 署名付きCookie・URLの検証はキャッシュより手前で毎回行われるので、エッジに残っても素通りはしない。
+    // Lambda（auth/*・api/*）は Cookie で応答が変わるので、従来どおり CachingDisabled のまま。
+    const siteCachePolicy = new cloudfront.CachePolicy(this, 'SiteCachePolicy', {
+      comment: 'No caching (TTL 0) but gzip/brotli compression enabled',
+      defaultTtl: Duration.seconds(0),
+      minTtl: Duration.seconds(0),
+      maxTtl: Duration.seconds(1),
+      enableAcceptEncodingGzip: true,
+      enableAcceptEncodingBrotli: true,
+      headerBehavior: cloudfront.CacheHeaderBehavior.none(),
+      cookieBehavior: cloudfront.CacheCookieBehavior.none(),
+      queryStringBehavior: cloudfront.CacheQueryStringBehavior.none(),
+    });
+
     const contentBucketOrigin = origins.S3BucketOrigin.withOriginAccessControl(contentBucket);
     const contentHeaders = securityPolicy(this, 'ContentHeaders', true, consoleOrigin, contentOrigin);
     const contentDistribution = new cloudfront.Distribution(this, 'ContentDistribution', {
@@ -137,7 +156,7 @@ export class HtmlShareStack extends Stack {
         origin: contentBucketOrigin,
         viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-        cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+        cachePolicy: siteCachePolicy,
         responseHeadersPolicy: contentHeaders,
         trustedKeyGroups: [keyGroup],
         compress: true,
@@ -150,7 +169,7 @@ export class HtmlShareStack extends Stack {
           origin: contentBucketOrigin,
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
-          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          cachePolicy: siteCachePolicy,
           responseHeadersPolicy: contentHeaders,
           compress: true,
         },
@@ -346,6 +365,8 @@ export class HtmlShareStack extends Stack {
       responseHeadersPolicy: consoleHeaders,
       compress: true,
     };
+    // S3 から配る画面と一覧（既定・app/*・review/*）は、キャッシュせずに圧縮する
+    const site = { ...common, cachePolicy: siteCachePolicy };
     // 一覧側の /pages/<slug>/… は、一覧アプリでそのページを開く URL（/app/index.html#/<slug>）へ送る。
     // 本文と同じ形のURLを一覧側に貼ってしまったときや、別の配信から移したページの古いリンクを生かすため
     const pageLinkFunction = new cloudfront.Function(this, 'PageLinkFunction', {
@@ -369,20 +390,20 @@ export class HtmlShareStack extends Stack {
       certificate,
       defaultRootObject: 'index.html',
       defaultBehavior: {
-        ...common,
+        ...site,
         origin: consoleS3Origin,
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
         functionAssociations: [{ function: pageLinkFunction, eventType: cloudfront.FunctionEventType.VIEWER_REQUEST }],
       },
       additionalBehaviors: {
         'app/*': {
-          ...common,
+          ...site,
           origin: consoleS3Origin,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           trustedKeyGroups: [keyGroup],
         },
         'review/*': {
-          ...common,
+          ...site,
           origin: consoleS3Origin,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
           trustedKeyGroups: [keyGroup],
