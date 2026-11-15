@@ -1,0 +1,91 @@
+/* ── Site theme: shared rules ───────────────────────────────────────────────
+   The build (src/theme.ts) appends "<theme>.css + this file" at the end of the stylesheet
+   of each console screen (dashboard and inbox), so these rules override the screen's own CSS.
+   A theme file only defines the --t-* variables; this file decides where they go.
+
+   The look: no dark band at the top. The top bar is a light, translucent strip in the
+   page color, a gradient wash sits on a fixed layer behind everything, and lists and
+   cards are white (or glass) surfaces. Blur is used on wide screens only, because it
+   makes scrolling heavy on phones.
+
+   The screens repaint the top bar inside @media blocks, so every selector here starts
+   with `html body` to win on specificity. */
+
+html { background: var(--t-base) !important; }
+html body, html body .app, html body main, html body #home { background: transparent !important; }
+/* The wash. iOS Safari ignores background-attachment: fixed, so it is drawn on a fixed layer. */
+html body::before {
+  content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
+  background: var(--t-wash);
+}
+
+/* ── Top bar: same color as the page, translucent ── */
+html body .topbar {
+  background: var(--t-bar) !important;
+  color: var(--t-title);
+  box-shadow: inset 0 -1px 0 var(--t-bar-line);
+}
+@media (min-width: 46.0625rem) {
+  html body .topbar {
+    -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4);
+  }
+}
+html body .brand, html body .brand .label { color: var(--t-title); font-family: var(--t-head); font-weight: var(--t-head-weight); }
+html body .brand svg { stroke: currentColor; }
+html body .brand:hover { background: var(--t-hover); }
+html body .brand-meta { color: var(--mut); }
+html body .tb-btn, html body #search-toggle, html body #search-clear { color: var(--t-title); }
+html body .tb-btn svg, html body #search-toggle svg { stroke: currentColor; }
+html body .tb-btn:hover, html body .search:hover { background: var(--t-hover); }
+html body.searching .search { background: var(--t-surface-solid); box-shadow: inset 0 0 0 1px var(--t-line); }
+html body #q { color: var(--ink); }
+html body #q::placeholder { color: var(--mut); }
+html body .tb-dot { box-shadow: 0 0 0 .07rem var(--t-base); }
+
+/* ── Filter chips: white with dark text; only the selected one takes the theme color ── */
+html body .chip { background: var(--t-chip-bg); color: var(--t-title); box-shadow: var(--t-chip-shadow); }
+html body .chip:hover { background: var(--t-surface-solid); }
+html body .chip .n { color: var(--t-link); opacity: 1; }
+html body .chip .n.soon { color: var(--gold-deep); }
+html body .chip.on { background: var(--t-chip-on); color: #fff; box-shadow: var(--t-cta-shadow); }
+html body .chip.on .n, html body .chip.on .n.soon { color: rgba(255, 255, 255, .86); }
+html body .chip.chip-fold { background: transparent; box-shadow: inset 0 0 0 1px var(--t-line); color: var(--sub); opacity: 1; }
+html body .filter-note { color: var(--sub); }
+
+/* ── Date groups and section headings ── */
+html body .dhead, html body .section-head { color: var(--t-title); }
+html body .dhead::after, html body .section-head::after { background: var(--t-line); opacity: 1; }
+
+/* ── Surfaces: page groups on the dashboard, requests and questions in the inbox ── */
+html body .theme, html body .solo, html body .compose, html body .cards > .card {
+  background: var(--t-surface); border: 0; border-radius: var(--t-r);
+  box-shadow: var(--t-surface-shadow);
+}
+@media (min-width: 46.0625rem) {
+  html body .theme, html body .solo, html body .compose, html body .cards > .card {
+    -webkit-backdrop-filter: var(--t-blur); backdrop-filter: var(--t-blur);
+  }
+}
+html body .compose:focus-within { box-shadow: 0 0 0 4px var(--t-focus), var(--t-surface-shadow); }
+html body .compose textarea { background: transparent; }
+html body .compose-target, html body .recommendation { background: var(--t-field); }
+html body .tname { font-family: var(--t-head); font-weight: var(--t-head-weight); color: var(--t-title); }
+html body .row-wrap + .row-wrap::before { background: var(--t-row-line); }
+html body .row-wrap:hover .row, html body .more:hover { background: var(--t-hover); }
+html body .more, html body .recommendation .label, html body .context a, html body .question a { color: var(--t-link); }
+html body .row .dot.on { background: var(--t-dot); box-shadow: 0 0 0 3px var(--t-focus); }
+html body .count { background: var(--t-surface-solid); border-color: var(--t-line); }
+html body .target-badge, html body .kind-badge:not(.todo):not(.unsure), html body .attach-badge {
+  background: var(--t-soft); color: var(--t-title);
+}
+html body .reply { background: var(--t-soft); }
+
+/* ── Primary buttons: the theme gradient ── */
+html body .compose-actions button:not(.attach-btn), html body .approve, html body .send, html body .pair-close {
+  background: var(--t-cta); box-shadow: var(--t-cta-shadow);
+}
+html body .compose-actions .attach-btn { color: var(--t-link); background: var(--t-surface-solid); border-color: var(--t-line); }
+html body .compose-actions .attach-btn.has { color: #fff; background: var(--t-cta); border-color: transparent; }
+html body .history summary:hover { background: var(--t-surface-solid); }
+html body #trash-toggle, html body #archive-toggle { background: var(--t-surface); border-color: var(--t-line); }
+html body .shelf-pin.on, html body .shelf-pin:hover { color: var(--t-link); }

@@ -71,11 +71,35 @@ export function checkHtml(source, { baseDir } = {}) {
   // Markdown habits leaking into HTML: the asterisks render as-is.
   if (/\*\*[^*\s][^*]*\*\*/.test(text)) ng.push('Markdown **bold** in page text; use <b>');
 
-  // Hero: inherited white loses to any later bare `p{color:...}`, so paint every descendant.
-  if (has(/class=["'][^"']*\bhero\b/) && !/\.hero\s*,\s*\.hero\s*\*\s*\{[^}]*color\s*:\s*#fff/i.test(css)) {
+  // Stylesheet v2: <html data-brief="<theme>"> marks a page started from new-page.mjs (assets/brief.css).
+  // Its hero has no band, so the v1 rules about the band are replaced by rules about the wash.
+  // Pages without data-brief are v1 pages and keep the v1 checks.
+  // Read only the first <html> tag: brief.css itself mentions `<html data-brief>` in a comment.
+  const htmlTag = source.match(/<html\b[^>]*>/i)?.[0] ?? '';
+  const theme = htmlTag.match(/\bdata-brief\s*=\s*["']([^"']*)["']/i)?.[1].trim().toLowerCase() ?? null;
+  const v2 = theme !== null;
+  const hero = rules.find((r) => /^\.hero$/.test(r.sel));
+  const whiteHero = /\.hero\s*,\s*\.hero\s*\*\s*\{[^}]*color\s*:\s*#fff/i.test(css);
+  if (v2) {
+    if (!/^[a-z0-9-]+$/.test(theme)) {
+      ng.push(`data-brief="${theme}" is not a theme name (lowercase letters, digits, hyphens)`);
+    } else if (!new RegExp(`:root\\[data-brief=["']${theme}["']\\]\\s*\\{`).test(css)) {
+      ng.push(`data-brief="${theme}" has no :root[data-brief="${theme}"] block; start the page with new-page.mjs`);
+    }
+    // White text from a v1 hero vanishes on the pale wash.
+    if (whiteHero) ng.push('v1 white hero rule `.hero, .hero *` on a v2 page; the v2 hero has no band, so the text disappears');
+    if (hero && /background/.test(hero.decl)) ng.push('v2 hero has a background; keep the heading on the wash instead of a band');
+    if (!rules.some((r) => r.sel === 'html' && /background\s*:\s*var\(--page-bg\)/.test(r.decl))) {
+      ng.push('v2 page has no `html { background: var(--page-bg) }`; overscroll shows a different color');
+    }
+    // The wash lives on a fixed layer because iOS ignores background-attachment: fixed.
+    if (!rules.some((r) => r.sel === 'body::before' && /position\s*:\s*fixed/.test(r.decl) && /background\s*:\s*var\(--wash\)/.test(r.decl))) {
+      ng.push('v2 page has no wash layer `body::before { position: fixed; background: var(--wash) }`');
+    }
+  } else if (has(/class=["'][^"']*\bhero\b/) && !whiteHero) {
+    // Hero: inherited white loses to any later bare `p{color:...}`, so paint every descendant.
     ng.push('hero text is not forced white with `.hero, .hero * { color: #fff }`');
   }
-  const hero = rules.find((r) => /^\.hero$/.test(r.sel));
   const heroPad = hero?.decl.match(/padding(?:-top)?\s*:\s*([^;]+)/)?.[1] ?? '';
   if (hero && heroPad) {
     const px = Number(heroPad.match(/(\d+(?:\.\d+)?)px/)?.[1] ?? 0);
@@ -88,7 +112,7 @@ export function checkHtml(source, { baseDir } = {}) {
   if (has(/<table\b/i) && has(/<th\b/i) && !has(/<thead\b/i)) ng.push('<table> uses <th> without an explicit <thead>');
   if (rules.some((r) => /(^|[\s,>])th\b/.test(r.sel) && /gradient|--[\w-]*grad\b/.test(r.decl))) ng.push('gradient on th restarts per cell; put it on thead');
   if (rules.some((r) => /(^|[\s,>])table\b/.test(r.sel) && /min-width\s*:\s*[1-9]/.test(r.decl))) ng.push('table has min-width; it forces horizontal overflow on phones');
-  if (has(/class=["'][^"']*\bcard\b/) && has(/<table\b/i) && !/\.card\s+thead\s*\{[^}]*background-image\s*:\s*none/i.test(css)) {
+  if (!v2 && has(/class=["'][^"']*\bcard\b/) && has(/<table\b/i) && !/\.card\s+thead\s*\{[^}]*background-image\s*:\s*none/i.test(css)) {
     ng.push('tables inside cards need `.card thead { background-image: none }` so bands do not nest');
   }
 

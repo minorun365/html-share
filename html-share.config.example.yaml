@@ -49,6 +49,10 @@ content:
   # 差し替えるフォルダ。この設定ファイルからの相対パスです。サイトを複数立てて、
   # アイコンの色で見分けたいときに使います。
   # iconsDir: icons
+  # siteTheme は一覧とインボックスの見た目です。省略すると light（淡い地にグラデ、上バーは半透明）。
+  # classic にすると以前の濃い青の上バーのまま配ります。自前のテーマは themes/site/light.css を写して
+  # 値を変え、この設定ファイルからの相対パス（.css で終わる値）で指定します。詳しくは docs/site-theme.md
+  # siteTheme: light
   # ogCardType はカードの大きさ。省略すると summary（各媒体でいちばん小さいカード）です。
   # summary_large_image は 1200x630 前後の横長画像を前提にした見せ方で、
   # 正方形やロゴを渡すと引き伸ばされます。

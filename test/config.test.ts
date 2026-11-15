@@ -137,3 +137,15 @@ test('loads shelf items and rejects ambiguous ones', () => {
   writeFileSync(config, `${base}  shelf:\n    - id: bad\n      url: https://example.com/\n      due: next week\n`);
   assert.throws(() => loadConfig(config), /must be a date/);
 });
+
+test('reads content.siteTheme and rejects values that are neither a name nor a .css path', () => {
+  const { config } = fixture();
+  const source = readFileSync(config, 'utf8');
+  assert.equal(loadConfig(config).content.siteTheme, undefined);
+  writeFileSync(config, source.replace('  roots: [pages]', '  siteTheme: classic\n  roots: [pages]'));
+  assert.equal(loadConfig(config).content.siteTheme, 'classic');
+  writeFileSync(config, source.replace('  roots: [pages]', '  siteTheme: themes/mine.css\n  roots: [pages]'));
+  assert.equal(loadConfig(config).content.siteTheme, 'themes/mine.css');
+  writeFileSync(config, source.replace('  roots: [pages]', '  siteTheme: "../Dark Theme"\n  roots: [pages]'));
+  assert.throws(() => loadConfig(config), /content\.siteTheme/);
+});

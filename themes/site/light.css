@@ -1,0 +1,36 @@
+/* Site theme "light" (the default): a pale aqua page with a soft blue-to-teal wash from the
+   lower right, translucent white cards, and a blue-to-teal gradient for primary actions.
+   Copy this file to make your own theme and point content.siteTheme at it (see docs/site-theme.md).
+   --t-base is required: the build uses it for theme-color and the web app manifest. */
+:root {
+  --t-head: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic UI", "Noto Sans JP", sans-serif;
+  --t-head-weight: 700;
+  --t-base: #f1fafc;
+  --t-wash:
+    radial-gradient(52vw 46vw at 96% 100%, rgba(34, 211, 238, .30), transparent 70%),
+    radial-gradient(40vw 34vw at 0% 0%, rgba(14, 165, 233, .08), transparent 70%),
+    #f1fafc;
+  --t-bar: rgba(241, 250, 252, .78);
+  --t-bar-line: rgba(8, 145, 178, .12);
+  --t-title: #0d1b24;
+  --t-link: #0284c7;
+  --t-dot: #06b6d4;
+  --t-line: rgba(8, 145, 178, .22);
+  --t-row-line: rgba(160, 195, 210, .35);
+  --t-hover: rgba(6, 182, 212, .09);
+  --t-focus: rgba(6, 182, 212, .18);
+  --t-soft: rgba(236, 254, 255, .9);
+  --t-field: rgba(241, 247, 250, .85);
+  --t-r: 1.35rem;
+  --t-surface: rgba(255, 255, 255, .62);
+  --t-surface-solid: #fff;
+  --t-surface-shadow: 0 14px 36px rgba(8, 100, 130, .08), inset 0 1.5px 0 #fff, inset 0 0 0 1px rgba(214, 230, 237, .95);
+  --t-blur: blur(22px) saturate(1.5);
+  --t-chip-bg: rgba(255, 255, 255, .62);
+  --t-chip-shadow: inset 0 0 0 1px rgba(214, 230, 237, .95);
+  --t-chip-on: linear-gradient(90deg, #1d6fd8, #0891b2);
+  --t-cta: linear-gradient(90deg, #1d6fd8, #0891b2);
+  --t-cta-shadow: 0 8px 20px rgba(8, 120, 170, .25);
+  /* The screens paint the area behind the status bar with --safe-top; keep it equal to --t-base. */
+  --safe-top: #f1fafc;
+}

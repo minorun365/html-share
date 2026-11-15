@@ -129,3 +129,42 @@ test('reports relative images that do not exist next to the file', () => {
   assert.deepEqual(ng, ['image not found: photos/shelf-09.png']);
   assert.deepEqual(checkHtml(html).ng, [], 'image paths are checked only when the file location is known');
 });
+
+// ── Stylesheet v2: pages started from new-page.mjs carry <html data-brief="..."> ──
+// @ts-expect-error plain ESM script without type declarations
+const { briefSkeleton, briefThemes } = await import('../skills/create-html/scripts/new-page.mjs');
+const starter: string = briefSkeleton({ title: 'パン屋の週次まとめ' });
+
+test('the v2 starter passes every check', () => {
+  assert.match(starter, /<html lang="ja" data-brief="light">/);
+  const { ng, warn } = checkHtml(starter);
+  assert.deepEqual(ng, []);
+  assert.deepEqual(warn, []);
+});
+
+test('the starter offers only themes defined in brief.css', () => {
+  assert.deepEqual(briefThemes(), ['light']);
+  assert.throws(() => briefSkeleton({ title: 'x', theme: 'neon' }), /unknown theme/);
+});
+
+const v2Breakages: Array<[string, (html: string) => string, RegExp]> = [
+  ['v1 white hero rule on a v2 page', (h) => h.replace('</style>', '.hero,.hero *{color:#fff}</style>'), /white hero rule/],
+  ['hero turned back into a band', (h) => h.replace('.hero{padding:', '.hero{background:var(--blue-grad);padding:'), /hero has a background/],
+  ['missing wash layer', (h) => h.replace('background:var(--wash)}', 'background:#fff}'), /wash layer/],
+  ['wash layer not fixed', (h) => h.replace('body::before{content:"";position:fixed;', 'body::before{content:"";position:absolute;'), /wash layer/],
+  ['page background not the theme color', (h) => h.replace('html{background:var(--page-bg);', 'html{background:#fff;'), /--page-bg/],
+  ['theme without a definition', (h) => h.replace('data-brief="light"', 'data-brief="neon"'), /no :root\[data-brief="neon"\]/],
+];
+
+for (const [name, breakIt, expected] of v2Breakages) {
+  test(`v2 detects: ${name}`, () => {
+    const { ng } = checkHtml(breakIt(starter));
+    assert.ok(ng.some((line: string) => expected.test(line)), `expected ${expected} in ${JSON.stringify(ng)}`);
+  });
+}
+
+test('v1 pages keep the v1 hero rule', () => {
+  // Without data-brief the white hero is still required, so a legacy page is checked as before.
+  const legacy = starter.replace(' data-brief="light"', '');
+  assert.ok(checkHtml(legacy).ng.some((line: string) => /forced white/.test(line)));
+});

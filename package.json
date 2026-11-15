@@ -27,6 +27,7 @@
     "dist/",
     "web/",
     "assets/og-card.jpg",
+    "themes/",
     "skills/",
     ".codex-plugin/",
     "html-share.config.example.yaml",

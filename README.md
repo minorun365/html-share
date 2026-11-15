@@ -49,6 +49,7 @@ Claude Code、Codex、Cursorなど、手元のどのエージェントからで�
 - [進行中フィルター](docs/progress-filter.md)
 - [保持期限と保管庫](docs/retention.md)
 - [リンクプレビュー（OGP）](docs/link-preview.md)
+- [画面のテーマとページの既定スタイル](docs/site-theme.md)
 
 ## ライセンス
 

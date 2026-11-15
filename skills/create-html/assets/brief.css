@@ -1,0 +1,153 @@
+/* ══ Page stylesheet v2 ══════════════════════════════════════════════════════
+   Used by pages that carry <html lang="ja" data-brief="light">. Start a new page with
+     node skills/create-html/scripts/new-page.mjs <out.html> --title "Title"
+   (or `html-share new-page`), which writes a complete page with this file inlined.
+   Pages without data-brief keep the v1 stylesheet in brief-template.html; fix those in v1.
+
+   What changed from v1: the hero is no longer a dark band. A gradient wash covers the
+   page on a fixed layer, headings sit on it in a dark color, and tables, cards and the
+   table of contents are white (translucent) surfaces. Gradients are used only for thin
+   lines and section numbers.
+
+   To add a theme, copy the :root[data-brief="light"] block under a new name and change
+   the values. The checker accepts any data-brief value that has its own :root block. */
+
+/* ── Theme values. Token names match v1, so parts that use var(--blue-deep) keep working ── */
+:root[data-brief="light"]{
+  --blue-deep:#0d1b24; --blue:#0369a1; --blue-mid:#0284c7; --blue-bright:#06b6d4;
+  --blue-soft:#ecfeff; --blue-line:#cdeef5;
+  --blue-grad:linear-gradient(90deg,#1d6fd8,#0891b2);
+  --line-grad:linear-gradient(90deg,#0ea5e9,#06b6d4 50%,#22d3ee);
+  --ink:#24343e; --sub:#3b4c57; --mut:#647b88; --line:rgba(160,195,210,.4); --hair:rgba(8,145,178,.16); --soft:rgba(241,247,250,.85);
+  --gray-grad:linear-gradient(135deg,#2f2f37 0%,#474751 55%,#6a6a75 100%);
+  --gold:#f0b21f; --gold-deep:#8a5a00; --gold-soft:#fdf5e0;
+  --accent:#0891b2;
+  --head:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Noto Sans JP",sans-serif;
+  --page-bg:#f1fafc;
+  --wash:radial-gradient(52vw 46vw at 96% 100%,rgba(34,211,238,.30),transparent 70%),
+         radial-gradient(40vw 34vw at 0% 0%,rgba(14,165,233,.08),transparent 70%),
+         #f1fafc;
+  --surface:rgba(255,255,255,.62);
+  --surface-shadow:0 14px 36px rgba(8,100,130,.08),inset 0 1.5px 0 #fff,inset 0 0 0 1px rgba(214,230,237,.95);
+  --thead-bg:rgba(236,254,255,.75); --r:22px; --blur:blur(22px) saturate(1.5);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{background:var(--page-bg);color-scheme:light}
+body{
+  margin:0;padding:0;background:transparent;
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic UI","Noto Sans JP",sans-serif;
+  color:var(--ink);line-height:1.85;font-size:15.5px;
+  -webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%;
+  font-feature-settings:"palt" 1;overflow-wrap:anywhere;
+}
+/* The wash. iOS Safari ignores background-attachment:fixed, so it is drawn on a layer fixed to the screen */
+body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background:var(--wash)}
+.wrap{max-width:940px;margin:0 auto;padding:0 max(22px,env(safe-area-inset-left))}
+.wrap p{margin:10px 0}
+.wrap a{color:var(--blue-mid);text-underline-offset:.2em}
+a:focus-visible{outline:3px solid rgba(240,178,31,.7);outline-offset:3px;border-radius:4px}
+.hero h1,h2,h3,.card>h4{font-family:var(--head)}
+.grid>*{min-width:0}
+
+/* ══ Hero: no band. A dark heading on the wash with a short gradient line ══ */
+/* The top padding clears the floating page tools (52px). Keep it at 64px or more */
+.hero{padding:calc(76px + env(safe-area-inset-top,0px)) 0 8px}
+.hero-in{max-width:940px;margin:0 auto;padding:0 max(22px,env(safe-area-inset-left))}
+.hero-in::before{content:"";display:block;width:96px;height:6px;border-radius:3px;margin-bottom:22px;background:var(--line-grad)}
+.hero .kicker{display:block;font-size:12px;letter-spacing:.16em;font-weight:700;color:var(--accent);margin-bottom:14px}
+.hero h1{font-size:31px;line-height:1.38;margin:0 0 14px;letter-spacing:.005em;font-weight:700;color:var(--blue-deep)}
+.hero .sub{font-size:15px;margin:0;font-weight:500;color:var(--ink)}
+.hero .meta{font-size:12.5px;color:var(--mut);margin-top:14px;line-height:1.9}
+.hero code{background:var(--surface);border:1px solid var(--line);color:var(--blue-deep)}
+
+/* ══ Table of contents ══ */
+.toc{margin:30px 0 0;padding:20px 24px;background:var(--surface);border-radius:16px;box-shadow:var(--surface-shadow)}
+.toc h2{font-family:inherit;font-size:12px;letter-spacing:.14em;color:var(--mut);margin:0 0 12px;font-weight:700}
+.wrap .toc ol{margin:0;padding:0;list-style:none;display:grid;gap:2px 28px;
+  grid-template-columns:repeat(auto-fit,minmax(min(280px,100%),1fr))}
+.wrap .toc li{margin:0}
+.toc a{display:flex;gap:12px;align-items:baseline;text-decoration:none;color:var(--sub);font-size:14px;padding:5px 0}
+.toc a:hover{color:var(--blue-deep)}
+.toc .num{font-size:11.5px;font-weight:700;color:var(--accent);font-variant-numeric:tabular-nums;flex:none;min-width:18px}
+
+/* ══ Sections: a pale hairline with a 72px gradient line at the left ══ */
+section{position:relative;margin:0;padding:46px 0 36px;border-top:1px solid var(--hair)}
+section:first-of-type{border-top:0}
+section::before{content:"";position:absolute;top:-1px;left:0;width:72px;height:3px;border-radius:3px;background:var(--line-grad)}
+section:first-of-type::before{display:none}
+.eyebrow{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;margin:0 0 8px;
+  font-variant-numeric:tabular-nums;color:var(--accent);width:max-content;
+  background:var(--line-grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+h2{font-size:23px;line-height:1.45;margin:0 0 12px;color:var(--blue-deep);font-weight:700;letter-spacing:.005em}
+h3{font-size:16.5px;margin:34px 0 8px;color:var(--blue-deep);font-weight:700;
+  padding-left:13px;border-left:3px solid var(--blue-bright);line-height:1.5}
+.wrap .lead{color:var(--sub);margin:0 0 20px;font-size:14.5px;line-height:1.85}
+
+/* ══ Cards: translucent white surfaces. The heading is dark text over a thin line, not a band ══ */
+.grid{display:grid;gap:14px;grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr));margin:20px 0}
+.card{background:var(--surface);border-radius:var(--r);box-shadow:var(--surface-shadow);overflow:hidden}
+.card>h4{margin:0;padding:13px 20px 11px;color:var(--blue-deep);border-bottom:1px solid var(--hair);
+  font-size:15px;font-weight:700;letter-spacing:.02em;line-height:1.5}
+.card.muted{background:rgba(255,255,255,.5)}
+.card.muted>h4{color:var(--sub)}
+.card-body{padding:14px 20px 17px}
+.card-body>:first-child{margin-top:0}
+.card-body>:last-child{margin-bottom:0}
+.wrap .card-body p{margin:6px 0;font-size:14px;color:var(--sub);line-height:1.8}
+
+/* ══ Callouts: a surface only, no colored edge ══ */
+.callout{background:rgba(253,245,224,.88);padding:18px 22px;border:1px solid #f2e2b5;border-radius:14px;margin:22px 0;font-size:14.5px}
+.callout b{color:var(--gold-deep)}
+.callout>:first-child{margin-top:0}
+.callout>:last-child{margin-bottom:0}
+.callout.blue{background:var(--surface);border-color:transparent;box-shadow:var(--surface-shadow)}
+.callout.blue b{color:var(--blue-deep)}
+
+/* ══ Tables: a pale header row on a white surface, no vertical rules ══ */
+/* Never give a table a min-width: it always overflows on phones */
+.table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:20px 0;
+  background:var(--surface);border-radius:16px;box-shadow:var(--surface-shadow)}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+thead{background:var(--thead-bg)}
+th{background:transparent;color:var(--blue-deep);font-weight:700;padding:13px 16px;
+  text-align:left;letter-spacing:.02em;border:0;border-bottom:1px solid var(--hair)}
+td{padding:13px 16px;text-align:left;vertical-align:top;border:0;border-bottom:1px solid var(--hair);line-height:1.75}
+tbody tr:last-child td{border-bottom:0}
+.card thead{background:transparent}
+td:first-child{font-weight:700;color:var(--blue)}
+.note{font-size:12.5px;color:var(--mut);margin:-8px 0 0;line-height:1.8}
+
+/* ══ Tags ══ */
+.tag{display:inline-block;font-size:11px;padding:3px 10px;border-radius:99px;font-weight:700;white-space:nowrap;vertical-align:2px;letter-spacing:.03em}
+.t-new{background:var(--gold);color:#4a3000}
+.t-fact{background:var(--blue-soft);color:var(--blue-deep)}
+
+/* ══ Quotes, lists, figures ══ */
+blockquote{margin:20px 0;padding:2px 0 2px 18px;color:var(--sub);font-size:13.8px;line-height:1.85;border-left:2px solid var(--hair)}
+ul,ol{margin:12px 0;padding-left:23px}
+li{margin:7px 0}
+svg{width:100%;height:auto;display:block}
+.fig{border-radius:16px;padding:18px;background:var(--surface);box-shadow:var(--surface-shadow);margin:24px 0}
+.fig figcaption{font-size:12.5px;color:var(--mut);margin-top:12px;text-align:center;line-height:1.7}
+img{max-width:100%;height:auto}
+
+footer{margin:56px 0 0;padding:28px 0 40px;border-top:1px solid var(--hair);font-size:12.5px;color:var(--mut);line-height:1.9}
+.wrap code{background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:5px;padding:1.5px 6px;
+  font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--blue-deep)}
+.wrap pre{background:#1c1c22;color:#eaeaf0;border-radius:12px;padding:14px 16px;overflow-x:auto}
+.wrap pre code{background:transparent;border:0;padding:0;color:#eaeaf0}
+
+/* Glass blur on wide screens only (it makes scrolling heavy on phones) */
+@media (min-width:46.0625rem){
+  .toc,.card,.callout.blue,.table-wrap,.fig{-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}
+}
+@media (max-width:620px){
+  body{font-size:15px}
+  .hero{padding:calc(68px + env(safe-area-inset-top,0px)) 0 6px}
+  .hero h1{font-size:23px}
+  h2{font-size:20px}
+  section{padding-top:38px}
+  .callout{padding:16px 18px}
+  .toc{padding:18px 20px}
+}

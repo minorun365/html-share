@@ -16,6 +16,7 @@ import type { HtmlShareConfig, StackOutputs } from './config.js';
 import { loadOutputs, resolveFromConfig, setPageKeep } from './config.js';
 import { REVIVE_DAYS } from './retention.js';
 import { signUrl } from './sign.js';
+import { loadSiteTheme, THEMED_SCREENS, themeShell } from './theme.js';
 
 const PACKAGE_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -40,11 +41,16 @@ function files(root: string, current = root): string[] {
 function copyConsole(buildRoot: string, manifest: object, config: HtmlShareConfig): void {
   const consoleRoot = path.join(buildRoot, 'console');
   mkdirSync(consoleRoot, { recursive: true });
+  // 一覧とインボックスには content.siteTheme のテーマを当てる（docs/site-theme.md）
+  const theme = loadSiteTheme(config);
   for (const relative of files(path.join(PACKAGE_ROOT, 'web'))) {
     const source = path.join(PACKAGE_ROOT, 'web', relative);
     const target = path.join(consoleRoot, relative);
     mkdirSync(path.dirname(target), { recursive: true });
-    writeFileSync(target, readFileSync(source));
+    const screen = relative.split(path.sep).join('/');
+    writeFileSync(target, THEMED_SCREENS.includes(screen)
+      ? themeShell(readFileSync(source, 'utf8'), theme, `web/${screen}`)
+      : readFileSync(source));
   }
   // iconsDir の中身は、同じ名前の同梱アイコンを上書きする（favicon.ico は直下、それ以外は icons/ へ）
   if (config.content.iconsDir) {
@@ -64,8 +70,8 @@ function copyConsole(buildRoot: string, manifest: object, config: HtmlShareConfi
     start_url: '/app/index.html',
     scope: '/',
     display: 'standalone',
-    background_color: '#f6f7f9',
-    theme_color: '#0e0d6a',
+    background_color: theme.background,
+    theme_color: theme.base,
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },

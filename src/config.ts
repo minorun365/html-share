@@ -82,6 +82,12 @@ export interface HtmlShareConfig {
      * 同じ名前のファイルだけを上書きする。複数のサイトをアイコンの色で見分けたいときに使う
      */
     iconsDir?: string;
+    /**
+     * 管理面（一覧・インボックス）のテーマ。省略すると light。
+     * classic は元の濃い青の上バー、.css で終わる値は設定ファイルからの相対パスにある自前のテーマ。
+     * 詳しくは docs/site-theme.md
+     */
+    siteTheme?: string;
     /** 進行中フィルター。省略すると進行中フィルターを出さない */
     shelf?: ShelfItemConfig[];
     /**
@@ -204,6 +210,14 @@ function shelfItems(value: unknown): ShelfItemConfig[] {
   });
 }
 
+/** テーマ名は英小文字・数字・ハイフンだけ。自前のテーマは .css のパスで書く */
+function siteThemeConfig(value: unknown): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const result = text(value, 'content.siteTheme');
+  if (result.endsWith('.css') || /^[a-z0-9-]+$/.test(result)) return result;
+  throw new Error('content.siteTheme must be a theme name (light, classic) or a path to a .css file');
+}
+
 function cidr(value: unknown, name: string): string {
   const result = text(value, name);
   if (!/^(?:\d{1,3}\.){3}\d{1,3}\/\d{1,2}$/.test(result)) throw new Error(`${name} must be an IPv4 CIDR`);
@@ -301,6 +315,7 @@ export function loadConfig(file?: string): HtmlShareConfig {
       iconsDir: content.iconsDir === undefined || content.iconsDir === null
         ? undefined
         : text(content.iconsDir, 'content.iconsDir'),
+      siteTheme: siteThemeConfig(content.siteTheme),
       shelf: shelfItems(content.shelf),
       streamDues: streamDuesConfig(content.streamDues),
     },

@@ -1,5 +1,7 @@
 (() => {
   if (!matchMedia('(max-width: 46rem)').matches) return;
+  // v2 のページ（<html data-brief>）は帯の無い淡い地で、上端は html の背景が受け持つ。青い上端を塗らない
+  if (document.documentElement.getAttribute?.('data-brief') != null) return;
 
   // 共有くんが配るページの上端色はここ1か所に固定する。ダッシュボード（app/index.html）と
   // インボックス（review/index.html）の --safe-top と同じ値。

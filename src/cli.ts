@@ -15,6 +15,7 @@ import {
   type ReviewCard,
 } from './review-client.js';
 import { filesForBatch, imagesDir, recentBatches } from './inbox-images.js';
+import { newPage, pageTheme } from './new-page.js';
 
 function option(name: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -39,6 +40,7 @@ Usage:
   html-share publish [--config file]
   html-share share <slug> [--days 7]
   html-share page add <path> [--title title]
+  html-share new-page <out.html> --title title [--theme light] [--force]
   html-share page revive <slug> [--days 14] [--no-publish]
   html-share keys init [--overwrite]
   html-share keys store [--overwrite]
@@ -68,6 +70,22 @@ async function main(): Promise<void> {
     // keep を書いた設定を読み直してから publish する
     const published = flag('--no-publish') ? undefined : await publish(loadConfig(option('--config')));
     console.log(JSON.stringify({ ok: true, revived: page.slug, title: page.title, keep, ...(published ? { published } : { next: 'html-share publish' }) }, null, 2));
+    return;
+  }
+  // 新しいページの雛形（既定スタイルシート v2）。設定ファイルが無くても書き出せる
+  if (command === 'new-page') {
+    const out = process.argv[3];
+    const title = option('--title');
+    if (!out || out.startsWith('--') || !title) usage();
+    let config;
+    try {
+      config = loadConfig(option('--config'));
+    } catch {
+      config = undefined;
+    }
+    const theme = await pageTheme(option('--theme'), config);
+    const file = await newPage(out, title, theme, flag('--force'));
+    console.log(JSON.stringify({ ok: true, path: file, theme, next: 'Replace the sample body, then run skills/create-html/scripts/check-html.mjs' }));
     return;
   }
   if (command === 'page') {
