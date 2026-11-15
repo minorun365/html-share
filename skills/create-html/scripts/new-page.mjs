@@ -21,6 +21,12 @@ export function briefThemes(css = briefCss()) {
 
 const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/** Definitions the figure parts point at (the .s-deep gradient and the tile shadow). One line, so it adds no text to the page. */
+export const BRIEF_DEFS = '<svg class="brief-defs" aria-hidden="true" focusable="false"><defs>'
+  + '<linearGradient id="brief-deep" x1="0" y1="0" x2="1" y2="0"><stop offset="0" style="stop-color:var(--fig-deep-a)"/><stop offset=".5" style="stop-color:var(--fig-deep-b)"/><stop offset="1" style="stop-color:var(--fig-deep-c)"/></linearGradient>'
+  + '<filter id="brief-sh" x="-10%" y="-25%" width="120%" height="160%"><feDropShadow dx="0" dy="4" stdDeviation="5" style="flood-color:var(--fig-shadow)" flood-opacity=".2"/></filter>'
+  + '</defs></svg>';
+
 /** The starter page. The body is a sample to replace: context, contents, one section with cards, a figure and a table. */
 export function briefSkeleton({ title, theme = DEFAULT_BRIEF_THEME }) {
   const css = briefCss();
@@ -38,6 +44,7 @@ ${css.trim()}
 </style>
 </head>
 <body>
+${BRIEF_DEFS}
 <div class="hero">
   <div class="hero-in">
     <span class="kicker">案件名 ／ ページの種類</span>
@@ -69,17 +76,19 @@ ${css.trim()}
       <div class="card"><h4>カードの題</h4><div class="card-body"><p>カードの本文を一文で書く。</p></div></div>
     </div>
     <figure class="fig">
-      <svg viewBox="0 0 640 112" role="img" aria-label="見本の棒グラフ">
-        <text x="0" y="34" font-size="15" fill="#3b4c57">案A</text>
-        <rect x="70" y="16" width="420" height="26" rx="6" fill="var(--blue-bright)"/>
-        <text x="502" y="35" font-size="15" fill="#3b4c57">42</text>
-        <text x="0" y="94" font-size="15" fill="#3b4c57">案B</text>
-        <rect x="70" y="76" width="240" height="26" rx="6" fill="var(--blue-line)"/>
-        <text x="322" y="95" font-size="15" fill="#3b4c57">24</text>
+      <svg viewBox="0 0 640 132" role="img" aria-label="見本の流れ図">
+        <rect class="s-tile" x="8" y="20" width="180" height="92" rx="12"/>
+        <text class="on-light" x="98" y="72" font-size="16" font-weight="700" text-anchor="middle">脇役は白いタイル</text>
+        <path class="s-arrow" d="M200,58 L214,66 L200,74 Z"/>
+        <rect class="s-2" x="226" y="20" width="180" height="92" rx="12"/>
+        <text class="on-light" x="316" y="72" font-size="16" font-weight="700" text-anchor="middle">段階は淡→濃</text>
+        <path class="s-arrow" d="M418,58 L432,66 L418,74 Z"/>
+        <rect class="s-deep" x="444" y="20" width="188" height="92" rx="12"/>
+        <text class="on-deep" x="538" y="72" font-size="16" font-weight="700" text-anchor="middle">主役は濃い面</text>
       </svg>
       <figcaption>図の題</figcaption>
     </figure>
-    <p>図が何を示し、そこから何が言えるかを二、三文で書く。たとえば案Aは案Bのおよそ二倍で、差は前回より広がった。次の節では、この差がどこから来たかを内訳で示す。図の数字は表にも同じ値で載せ、読み手が両方を見比べられるようにする。</p>
+    <p>図が何を示し、そこから何が言えるかを二、三文で書く。たとえば三つの段のうち、読み手に届く最後の段だけを濃く塗り、そこが結論だと一目で分かるようにする。前の二段は淡い面と白いタイルにして、主役より目立たせない。</p>
     <div class="table-wrap"><table>
       <thead><tr><th>項目</th><th>内容</th></tr></thead>
       <tbody><tr><td>案A</td><td>42</td></tr><tr><td>案B</td><td>24</td></tr></tbody>

@@ -168,3 +168,14 @@ test('v1 pages keep the v1 hero rule', () => {
   const legacy = starter.replace(' data-brief="light"', '');
   assert.ok(checkHtml(legacy).ng.some((line: string) => /forced white/.test(line)));
 });
+
+test('warns about a v2 figure with no deep fill, and the definitions block is not a figure', async () => {
+  const { briefSkeleton } = await import('../skills/create-html/scripts/new-page.mjs');
+  const page = (svg: string) => `<!doctype html><html lang="ja" data-brief="light"><head><title>t</title></head><body><section><h2>節</h2>${svg}</section></body></html>`;
+  const flatSvg = '<svg viewBox="0 0 10 10"><rect class="bx"/><rect/><rect/></svg>';
+  assert.ok(checkHtml(page(flatSvg)).warn.some((line: string) => /no deep fill/.test(line)));
+  assert.ok(!checkHtml(page(flatSvg.replace('class="bx"', 'class="s-deep"'))).warn.some((line: string) => /no deep fill/.test(line)));
+  const onlyDefs = page('<svg class="brief-defs"><defs></defs></svg><p>本文</p>');
+  assert.ok(checkHtml(onlyDefs).ng.some((line: string) => /no figure/.test(line)));
+  assert.ok(!checkHtml(briefSkeleton({ title: 't' })).warn.some((line: string) => /no deep fill/.test(line)));
+});

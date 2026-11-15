@@ -143,6 +143,29 @@ footer{margin:56px 0 0;padding:28px 0 40px;border-top:1px solid var(--hair);font
 .wrap pre{background:#1c1c22;color:#eaeaf0;border-radius:12px;padding:14px 16px;overflow-x:auto}
 .wrap pre code{background:transparent;border:0;padding:0;color:#eaeaf0}
 
+/* ══ Figure parts ══
+   Slide-template figures separate roles by how deep the fill is, not by outlines.
+   Main actor: .s-deep (deep gradient). Name tag: .s-ink (solid dark). Steps or layers: .s-1 to .s-4 (light to deep).
+   Supporting boxes: .s-tile (white tile lifted by a shadow). Text on deep fills: .on-deep; on light fills: .on-light.
+   The gradient and shadow come from the svg.brief-defs block at the top of the body (the starter has it);
+   without it the deep fill falls back to a solid color. */
+:root[data-brief="light"]{--fig-deep-a:#1d6fd8;--fig-deep-b:#0b8fc4;--fig-deep-c:#0891b2;--fig-deep:#0b84c0;--fig-ink:#0c3a52;
+  --fig-1:#effbfd;--fig-2:#d3f2f8;--fig-3:#a9e3ef;--fig-4:#6ccbe0;--fig-on:#0d1b24;--fig-line:#93b8c6;--fig-shadow:#08647f}
+svg.brief-defs{position:absolute;width:0;height:0;overflow:hidden}
+:root[data-brief] svg .s-deep{fill:var(--fig-deep);stroke:none}
+:root[data-brief]:has(#brief-deep) svg .s-deep{fill:url(#brief-deep)}
+:root[data-brief] svg .s-ink{fill:var(--fig-ink);stroke:none}
+:root[data-brief] svg .s-1{fill:var(--fig-1);stroke:none}
+:root[data-brief] svg .s-2{fill:var(--fig-2);stroke:none}
+:root[data-brief] svg .s-3{fill:var(--fig-3);stroke:none}
+:root[data-brief] svg .s-4{fill:var(--fig-4);stroke:none}
+:root[data-brief] svg .s-tile{fill:#fff;stroke:none}
+:root[data-brief]:has(#brief-sh) svg :is(.s-tile,.s-deep,.s-ink){filter:url(#brief-sh)}
+:root[data-brief] svg .s-line{fill:none;stroke:var(--fig-line);stroke-width:2.5;stroke-linecap:round}
+:root[data-brief] svg .s-arrow{fill:var(--fig-line);stroke:none}
+:root[data-brief] svg .on-deep{fill:#fff}
+:root[data-brief] svg .on-light{fill:var(--fig-on)}
+
 /* Glass blur on wide screens only (it makes scrolling heavy on phones) */
 @media (min-width:46.0625rem){
   .toc,.card,.callout.blue,.table-wrap,.fig{-webkit-backdrop-filter:var(--blur);backdrop-filter:var(--blur)}

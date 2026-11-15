@@ -172,10 +172,18 @@ export function checkHtml(source, { baseDir } = {}) {
     for (const src of missingImages(source, baseDir)) ng.push(`image not found: ${src}`);
   }
 
+  // Slide-template figures put the main actor on a deep fill. A v2 figure of three or more shapes with no deep fill reads flat.
+  if (/<html\b[^>]*\bdata-brief\s*=/i.test(source)) {
+    const deep = /class=["'][^"']*\b(s-deep|s-ink|s-4)\b|fill=["'](?:url\(#|var\(--(?:blue-deep|blue|blue-mid|blue-bright|accent|fig-deep|fig-ink|fig-4)\)|#(?:0369a1|0284c7|0891b2|06b6d4|1d6fd8))/i;
+    const flat = (body.replace(/<svg\b[^>]*class=["'][^"']*\bbrief-defs\b[\s\S]*?<\/svg>/gi, '').match(/<svg\b[\s\S]*?<\/svg>/gi) ?? [])
+      .filter((svg) => (svg.match(/<(rect|path|polygon|circle)\b/gi) ?? []).length >= 3 && !deep.test(svg)).length;
+    if (flat) warn.push(`${flat} figure(s) have no deep fill; put the main box on .s-deep or .s-ink, steps on .s-1 to .s-4, supporting boxes on .s-tile, and drop the outlines`);
+  }
+
   // A page made only of text and tables is hard to take in, so no figure is a defect.
   // Pages that truly need none (a reproduced message, for example) opt out explicitly.
   const optOut = /<meta\s+name=["']brief-figures["']\s+content=["']none["']/i.test(source);
-  if (!optOut && !has(/<svg\b/i) && !has(/<img\b/i)) ng.push('no figure on the page; draw the comparisons, flows, breakdowns, or structure (pages that need none: <meta name="brief-figures" content="none">)');
+  if (!optOut && !/<svg\b/i.test(body.replace(/<svg\b[^>]*class=["'][^"']*\bbrief-defs\b[\s\S]*?<\/svg>/gi, '')) && !has(/<img\b/i)) ng.push('no figure on the page; draw the comparisons, flows, breakdowns, or structure (pages that need none: <meta name="brief-figures" content="none">)');
 
   // Review items, not defects.
   // A handful of figures with the rest in text cards still reads as text-heavy, so name the sections without one.
