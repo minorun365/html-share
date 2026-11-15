@@ -43,6 +43,11 @@ body{
 }
 /* The wash. iOS Safari ignores background-attachment:fixed, so it is drawn on a layer fixed to the screen */
 body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;background:var(--wash)}
+/* The ring of the light theme: a blue-to-teal circle fixed to the lower-right corner */
+:root[data-brief="light"] body::after{content:"";position:fixed;z-index:-1;pointer-events:none;border-radius:50%;
+  width:min(46vw,560px);aspect-ratio:1;right:calc(min(46vw,560px) * -.38);bottom:calc(min(46vw,560px) * -.22);
+  background:conic-gradient(from 200deg,#0284c7,#06b6d4,#22d3ee,#a5f3fc,#ecfeff,#0284c7);
+  -webkit-mask:radial-gradient(circle,transparent 0 62%,#000 62.4%);mask:radial-gradient(circle,transparent 0 62%,#000 62.4%)}
 .wrap{max-width:940px;margin:0 auto;padding:0 max(22px,env(safe-area-inset-left))}
 .wrap p{margin:10px 0}
 .wrap a{color:var(--blue-mid);text-underline-offset:.2em}
@@ -150,4 +155,5 @@ footer{margin:56px 0 0;padding:28px 0 40px;border-top:1px solid var(--hair);font
   section{padding-top:38px}
   .callout{padding:16px 18px}
   .toc{padding:18px 20px}
+  :root[data-brief="light"] body::after{width:300px;right:-150px;bottom:-60px}
 }

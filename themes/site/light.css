@@ -1,5 +1,5 @@
 /* Site theme "light" (the default): a pale aqua page with a soft blue-to-teal wash from the
-   lower right, translucent white cards, and a blue-to-teal gradient for primary actions.
+   lower right, a blue-to-teal ring peeking in from the lower-right corner, translucent white cards, and a blue-to-teal gradient for primary actions.
    Copy this file to make your own theme and point content.siteTheme at it (see docs/site-theme.md).
    --t-base is required: the build uses it for theme-color and the web app manifest. */
 :root {
@@ -33,4 +33,17 @@
   --t-cta-shadow: 0 8px 20px rgba(8, 120, 170, .25);
   /* The screens paint the area behind the status bar with --safe-top; keep it equal to --t-base. */
   --safe-top: #f1fafc;
+}
+/* The ring: a blue-to-teal circle fixed to the lower-right corner. It stays put while the
+   page scrolls, and the translucent cards let it show through. */
+html body::after {
+  content: ""; position: fixed; z-index: -1; pointer-events: none;
+  width: min(46vw, 560px); aspect-ratio: 1; border-radius: 50%;
+  right: calc(min(46vw, 560px) * -.38); bottom: calc(min(46vw, 560px) * -.22);
+  background: conic-gradient(from 200deg, #0284c7, #06b6d4, #22d3ee, #a5f3fc, #ecfeff, #0284c7);
+  -webkit-mask: radial-gradient(circle, transparent 0 62%, #000 62.4%);
+  mask: radial-gradient(circle, transparent 0 62%, #000 62.4%);
+}
+@media (max-width: 46rem) {
+  html body::after { width: 300px; right: -150px; bottom: -60px; }
 }
