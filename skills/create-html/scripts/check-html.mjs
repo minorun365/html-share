@@ -233,7 +233,7 @@ export function checkHtml(source, { baseDir } = {}) {
   };
   const unbroken = [...body.replace(/<svg[\s\S]*?<\/svg>/gi, (m) => ' '.repeat(m.length))
     .matchAll(/<(p|li|td|dd)\b[^>]*>((?:(?!<\/?(?:p|li|td|dd|ul|ol|div)\b)[\s\S])*)/gi)]
-    .flatMap((m) => m[2].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').split('\n')
+    .flatMap((m) => m[2].replace(/<br\s*\/?>|<span class="sent">/gi, '\n').replace(/<[^>]+>/g, '').split('\n')
       .map((text) => ({ index: m.index, text: text.trim() })))
     .filter(({ text }) => {
       if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(text)) return text.length >= 60 && sentenceEnds(text) >= 1;
@@ -247,8 +247,11 @@ export function checkHtml(source, { baseDir } = {}) {
     const rows = (m[0].replace(/<thead\b[\s\S]*?<\/thead>/gi, '').match(/<tr\b/gi) ?? []).length;
     if (rows >= 10) warn.push(`"${sectionAt(body, m.index)}" has a ${rows}-row table; regroup it into category boxes of up to three items, or a figure`);
   }
-  for (const list of listSizes(body)) {
-    if (list.items >= 8) warn.push(`"${sectionAt(body, list.index)}" has a list of ${list.items} items; split it into category boxes, or draw a sequence as a figure`);
+  // The table of contents is a list of sections, not a list to read, so it is left out (blanked to keep the offsets).
+  const noToc = body.replace(/<nav\b[\s\S]*?<\/nav>|<(ol|ul)\b[^>]*class="[^"]*\btoc\b[\s\S]*?<\/\1>/gi, (m) => ' '.repeat(m.length));
+  for (const list of listSizes(noToc)) {
+    // Keep each list to two or three items: from four on, readers mostly stop reading it.
+    if (list.items >= 4) warn.push(`"${sectionAt(body, list.index)}" has a list of ${list.items} items; cut or merge it to two or three, split it into category boxes, or draw a sequence as a figure`);
   }
   // List items that open with a bold label and a colon read as a filled-in template.
   const labelled = body.match(/<li\b[^>]*>\s*<(b|strong)\b[^>]*>[^<]{1,30}[：:]\s*<\/\1>/gi) ?? [];
