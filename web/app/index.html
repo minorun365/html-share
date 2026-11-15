@@ -354,6 +354,38 @@ body.searching .chips { display: none; }
   overflow-wrap: anywhere;
 }
 .filter-note b { color: var(--blue-deep); }
+.focus-back {
+  margin-right: .7rem; padding: .25rem .7rem; vertical-align: baseline;
+  border: 1px solid var(--blue-line); border-radius: 999px; background: var(--panel);
+  color: var(--blue); font: inherit; font-size: .76rem; font-weight: 650; cursor: pointer;
+}
+.focus-back:hover { background: #f4f7fc; }
+/* 集中表示のカードと左端をそろえる（カードは .home-content の左右の余白の内側で 56rem まで） */
+.filter-note:not([hidden]) {
+  max-width: 56rem; margin-left: auto; margin-right: auto;
+  padding: 0 var(--gutter); box-sizing: content-box;
+}
+
+/* カード見出しのテーマ名。押すとそのテーマだけの集中表示へ */
+.tname-btn {
+  padding: 0; border: 0; background: transparent; font: inherit; text-align: left;
+  cursor: pointer; text-underline-offset: .2em;
+}
+@media (hover: hover) { .tname-btn:hover { text-decoration: underline; } }
+
+/* ── 集中表示：1つのテーマを1枚の広いカードに。タイトルは省略せず折り返す ── */
+.theme.focus { max-width: 56rem; margin: 0 auto; padding-bottom: .6rem; }
+.theme.focus .th { padding: 1rem 1.25rem .6rem; }
+.theme.focus .tname { margin: 0; font-size: 1.05rem; }
+.theme.focus .fday {
+  margin: .9rem 1.25rem .2rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+  color: var(--blue); font-variant-numeric: tabular-nums;
+}
+.theme.focus .row { align-items: flex-start; padding-top: .55rem; padding-bottom: .55rem; }
+.theme.focus .row .dot { margin-top: .5rem; }
+.theme.focus .row .t { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.theme.focus .row time { line-height: 1.5rem; }
+.theme.focus .fday + .row-wrap::before { display: none; }
 .filter-note a { color: var(--blue); }
 
 .empty { padding: 4rem 0; text-align: center; color: var(--mut); font-size: .85rem; }
@@ -534,6 +566,13 @@ body.page-controls-hidden #page-actions {
     padding-right: max(1rem, env(safe-area-inset-right, 0px));
     padding-left: max(1rem, env(safe-area-inset-left, 0px));
   }
+  /* 集中表示の「‹ すべて」も、上の .home-content と同じ左右の余白にそろえる */
+  .filter-note:not([hidden]) {
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  }
+  .theme.focus .th { padding: .8rem .9rem .5rem; }
+  .theme.focus .fday { margin-left: .9rem; margin-right: .9rem; }
   .dgroup { margin-bottom: 1.9rem; }
   .theme, .solo { margin-bottom: .9rem; border-radius: .9rem; }
   .th { padding: .65rem .85rem .5rem; }
@@ -1185,10 +1224,18 @@ body.page-controls-hidden #page-actions {
 
     const head = document.createElement('div');
     head.className = 'th';
-    const name = document.createElement('span');
+    // テーマ名を押すと、そのテーマだけを1枚に広げた集中表示へ切り替える（削除済み・保管庫では押せない）
+    const name = document.createElement(showingTrash || showingArchive ? 'span' : 'button');
     name.className = 'tname';
     name.textContent = stream.label;
+    if (name.tagName === 'BUTTON') {
+      name.type = 'button';
+      name.classList.add('tname-btn');
+      name.title = 'このテーマだけを広げて見る';
+      name.addEventListener('click', () => enterFocus(stream.key));
+    }
     head.append(name);
+
 
     const count = document.createElement('span');
     count.className = 'tcount';
@@ -1457,21 +1504,92 @@ body.page-controls-hidden #page-actions {
     const item = liveShelf().find((candidate) => shelfKey(candidate) === shelfFilter);
     note.hidden = false;
     note.replaceChildren();
-    const b = document.createElement('b');
-    b.textContent = item?.title ?? '';
+    const back = document.createElement('button');
+    back.type = 'button';
+    back.className = 'focus-back';
+    back.textContent = '‹ すべて';
+    back.title = '一覧へ戻る（Esc）';
+    back.addEventListener('click', leaveFocus);
+    note.append(back);
+    // テーマ名と件数は下のカードの見出しに出るので、ここには進行中の項目が持つ締切・メモ・リンクだけを足す。
+    // ページの無い項目（url だけの項目）はカードが出ないので、名前もここに出す
     const parts = [];
+    if (count === 0 && item?.title) parts.push(item.title);
     if (item?.due) parts.push(`${shelfDueLabel(item.due).text}${item.dueWhat ? ` ${item.dueWhat}` : ''}`);
     if (item?.note) parts.push(item.note);
-    parts.push(`${count}ページ`);
-    note.append(b, document.createTextNode(`　${parts.join('・')}`));
+    if (parts.length > 0) note.append(document.createTextNode(parts.join('・')));
     if (item?.url) {
       const a = document.createElement('a');
       a.href = item.url;
       a.target = '_blank';
       a.rel = 'noopener';
       a.textContent = '元のスレッド ↗';
-      note.append(document.createTextNode('・'), a);
+      if (parts.length > 0) note.append(document.createTextNode('・'));
+      note.append(a);
     }
+  }
+
+  /** JST の暦日の見出し（11/16（月））。集中表示で日ごとに区切るのに使う */
+  const focusDayFormat = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', month: 'numeric', day: 'numeric', weekday: 'short' });
+  const focusTimeFormat = new Intl.DateTimeFormat('ja-JP', { timeZone: 'Asia/Tokyo', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  function focusDay(iso) {
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return '';
+    const parts = Object.fromEntries(focusDayFormat.formatToParts(date).map((p) => [p.type, p.value]));
+    return `${parts.month}/${parts.day}（${parts.weekday}）`;
+  }
+
+  /**
+   * 集中表示：選んだテーマのページを、1枚の広いカードへ新しい順に全部並べる。
+   * 列の幅を気にせず見比べられるよう、タイトルは省略せず折り返し、日付は日ごとの見出しに出す
+   */
+  function renderFocus(items) {
+    const [stream] = groupByStream(items);
+    const section = document.createElement('section');
+    section.className = 'theme focus';
+
+    const head = document.createElement('div');
+    head.className = 'th';
+    const name = document.createElement('h2');
+    name.className = 'tname';
+    name.textContent = stream.label;
+    const count = document.createElement('span');
+    count.className = 'tcount';
+    count.textContent = `${stream.pages.length}件`;
+    head.append(name, count, shelfPinButton(stream), streamStarButton(stream));
+    section.append(head);
+
+    let day = null;
+    for (const page of stream.pages) {
+      const label = focusDay(page.date);
+      if (label !== day) {
+        day = label;
+        const dh = document.createElement('div');
+        dh.className = 'fday';
+        dh.textContent = label;
+        section.append(dh);
+      }
+      const row = pageRow(page, { indented: true });
+      const when = row.querySelector('time');
+      if (when) when.textContent = focusTimeFormat.format(new Date(page.date));
+      section.append(row);
+    }
+    tilesEl.append(section);
+  }
+
+  /** カード見出しのテーマ名から集中表示へ。戻ったときに元のスクロール位置へ帰れるよう覚えておく */
+  let focusReturnScroll = null;
+  function enterFocus(key) {
+    focusReturnScroll = home.scrollTop;
+    shelfFilter = key;
+    renderHome();
+    home.scrollTo({ top: 0 });
+  }
+  function leaveFocus() {
+    shelfFilter = null;
+    renderHome();
+    if (focusReturnScroll !== null) home.scrollTo({ top: focusReturnScroll });
+    focusReturnScroll = null;
   }
 
   // ── トップ: スター付き → 日付の区切り（中はテーマ単位の塊）。進行中はヘッダーのチップで絞る
@@ -1479,7 +1597,8 @@ body.page-controls-hidden #page-actions {
     tilesEl.replaceChildren();
     // チップで選んだ絞り込みは、外されたり検索を始めたり進行中フィルターから消えたりしたら解除する
     const shelfStreams = new Set(liveShelf().map(shelfKey));
-    if (shelfFilter && (showingTrash || showingArchive || filterText.trim() || !shelfStreams.has(shelfFilter))) shelfFilter = null;
+    const knownStream = shelfFilter && (shelfStreams.has(shelfFilter) || pages.some((page) => pageStream(page) === shelfFilter));
+    if (shelfFilter && (showingTrash || showingArchive || filterText.trim() || !knownStream)) shelfFilter = null;
     const items = shelfFilter
       ? visiblePages().filter((page) => pageStream(page) === shelfFilter)
       : visiblePages();
@@ -1546,7 +1665,13 @@ body.page-controls-hidden #page-actions {
       return;
     }
 
-    // スターは一覧の先頭の段に固定する。チップで絞り込んだときも、絞った結果に同じ並べ方をする
+    // テーマを1つ選んでいる間は、スターや日付の区切りで割らず、そのテーマを1枚に広げて並べる
+    if (shelfFilter) {
+      renderFocus(items);
+      return;
+    }
+
+    // スターは一覧の先頭の段に固定する
     const pinnedStreams = [];
     const rest = [];
     for (const stream of groupByStream(items)) {
@@ -1740,6 +1865,15 @@ body.page-controls-hidden #page-actions {
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
     event.preventDefault();
     setSearching(true);
+  });
+
+  // テーマの集中表示は Esc で一覧へ戻る（ページを開いている間・文字入力中・メニューが開いている間は触らない）
+  addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !shelfFilter || event.defaultPrevented) return;
+    if (document.body.classList.contains('page-open')) return;
+    const tag = event.target?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+    leaveFocus();
   });
 
   // 名前を押したらトップへ戻る
