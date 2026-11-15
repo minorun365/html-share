@@ -52,7 +52,11 @@ test('ships the full dashboard UI and inbox wording', () => {
   // 送るボタンの影・縮みを▼と候補へ漏らさない。hidden の▼は display:flex に負けず消える
   assert.doesNotMatch(review, /^\.compose button/m);
   assert.match(review, /\.compose \.target-open\[hidden\] \{ display: none; \}/);
-  assert.match(review, /JSON\.stringify\(\{ question: text, target \}\)/);
+  assert.match(review, /JSON\.stringify\(\{ question: text, target, /);
+  // 画像はブラウザで JPEG へ描き直し（HEIC を避け、撮影データを落とす）、一時置き場へ直接送ってから依頼に束を添える
+  assert.match(review, /accept="image\/\*" multiple/, '画像を複数枚選べる');
+  assert.match(review, /canvas\.toBlob\(resolve, 'image\/jpeg'/, '送る前に JPEG へ描き直す');
+  assert.match(review, /attachmentBatch: batch\.batchId/, '依頼に画像の束を添える');
   assert.match(review, /targetField\.value = '';/);
   assert.match(review, /function measureClamps/, '長いカードは実寸で畳む');
   assert.match(review, /\.body\.clamped/);
@@ -144,6 +148,15 @@ test('loads iframe pages without adding child-frame history entries', () => {
 test('keeps generated report sections within the mobile viewport', () => {
   const template = readFileSync(path.join(root, 'skills', 'create-html', 'assets', 'brief-template.html'), 'utf8');
   assert.match(template, /\.grid > \*, \.ba > \* \{ min-width: 0; \}/);
+});
+
+test('keeps phone images in a private bucket that only the console can post to', () => {
+  const stack = readFileSync(path.join(root, 'infra', 'lib', 'html-share-stack.ts'), 'utf8');
+  assert.match(stack, /new s3\.Bucket\(this, 'UploadBucket', \{[\s\S]{0,200}BlockPublicAccess\.BLOCK_ALL/);
+  assert.match(stack, /expiration: Duration\.days\(7\)/, '取り込み忘れの画像は7日で消える');
+  assert.match(stack, /allowedOrigins: \[consoleOrigin\],\s*allowedMethods: \[s3\.HttpMethods\.POST\]/);
+  assert.match(stack, /connect-src 'self' \$\{uploadOrigin\}/, 'ブラウザから一時置き場へ直接送れる');
+  assert.match(stack, /arnForObjects\('inbox\/\*'\)/);
 });
 
 test('provisions managed login branding and the CloudFront payload hash header', () => {

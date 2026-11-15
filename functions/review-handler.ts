@@ -11,11 +11,19 @@ import {
   TransactWriteCommand,
   UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
+import {
+  attachableBatch,
+  handleDeviceUploads,
+  handleOwnerUploads,
+  linkBatchToTask,
+  s3UploadStore,
+} from './uploads.js';
 
 const ddb = DynamoDBDocumentClient.from(new DynamoDBClient({}), {
   marshallOptions: { removeUndefinedValues: true },
 });
 const ssm = new SSMClient({});
+const uploadStore = s3UploadStore();
 const TASK_TTL_SECONDS = 90 * 24 * 60 * 60;
 const PAIR_TTL_SECONDS = 10 * 60;
 const PREFERENCES_KEY = { pk: 'OWNER', sk: 'PREFERENCES' };
@@ -215,6 +223,15 @@ function publicTask(item: any): any {
   return rest;
 }
 
+/** 画像だけを添えて本文を空にした依頼に入れる既定の文 */
+export const IMAGE_ONLY_QUESTION = '添付した画像を見て';
+
+/** 本人の依頼の本文。画像を添えていれば空でもよく、そのときは既定の文にする */
+export function ownerQuestion(value: unknown, hasAttachment: boolean): string {
+  if (!hasAttachment) return clean(value, 'question', 2000, true);
+  return clean(value, 'question', 2000) || IMAGE_ONLY_QUESTION;
+}
+
 export async function handler(event: any): Promise<any> {
   try {
     const verb = method(event);
@@ -269,7 +286,9 @@ export async function handler(event: any): Promise<any> {
       }
       if (verb === 'POST' && path === '/api/owner/reviews') {
         const body = parseBody(event);
-        const question = clean(body.question, 'question', 2000, true);
+        // 画像は先に /api/owner/uploads で送り終えておき、その束の ID だけを添える
+        const attachment = await attachableBatch({ ddb, table }, body.attachmentBatch);
+        const question = ownerQuestion(body.question, Boolean(attachment));
         const id = randomUUID();
         const iso = new Date().toISOString();
         const item = {
@@ -283,12 +302,14 @@ export async function handler(event: any): Promise<any> {
           target: clean(body.target, 'target', 60),
           context: '',
           recommendation: '',
+          ...(attachment ? { attachmentBatch: attachment.batchId, attachmentCount: attachment.count } : {}),
           status: 'waiting',
           createdAt: iso,
           updatedAt: iso,
           expiresAt: now + TASK_TTL_SECONDS,
         };
         await ddb.send(new PutCommand({ TableName: table, Item: item, ConditionExpression: 'attribute_not_exists(pk)' }));
+        if (attachment) await linkBatchToTask({ ddb, table }, attachment.batchId, id);
         return json(201, { item: publicTask(item) });
       }
       if (verb === 'GET' && path === '/api/owner/preferences') {
@@ -362,6 +383,15 @@ export async function handler(event: any): Promise<any> {
         }
         return json(201, { url: signedUrl, expiresAt });
       }
+      if (path.startsWith('/api/owner/uploads')) {
+        const result = await handleOwnerUploads(
+          { ddb, table, store: uploadStore, now, uuid: randomUUID },
+          verb,
+          path,
+          verb === 'GET' ? {} : parseBody(event),
+        );
+        return json(result.statusCode, result.body);
+      }
       const remove = path.match(/^\/api\/owner\/reviews\/([^/]+)$/);
       if (verb === 'DELETE' && remove) {
         await ddb.send(new DeleteCommand({
@@ -426,6 +456,10 @@ export async function handler(event: any): Promise<any> {
           .filter((item) => !sessionId || item.sessionId === sessionId)
           .map(publicTask);
         return json(200, { items });
+      }
+      if (path.startsWith('/api/device/uploads')) {
+        const result = await handleDeviceUploads({ ddb, table, store: uploadStore, now, uuid: randomUUID }, verb, path);
+        return json(result.statusCode, result.body);
       }
       const complete = path.match(/^\/api\/device\/reviews\/([^/]+)\/complete$/);
       if (verb === 'POST' && complete) {

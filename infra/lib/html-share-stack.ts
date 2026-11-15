@@ -41,10 +41,13 @@ function securityPolicy(
   content: boolean,
   consoleOrigin: string,
   contentOrigin: string,
+  uploadOrigin = '',
 ): cloudfront.ResponseHeadersPolicy {
+  // 管理面の img-src の blob: は添付する画像のサムネイル、connect-src の uploadOrigin は
+  // スマホの画像を一時置き場へ直接 POST するため
   const csp = content
     ? `default-src 'none'; script-src 'unsafe-inline' data:; style-src 'unsafe-inline' data:; img-src data:; font-src data:; media-src data:; frame-src 'none'; connect-src 'none'; form-action 'none'; frame-ancestors ${consoleOrigin}; base-uri 'none'; sandbox allow-scripts`
-    : `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-src ${contentOrigin}; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
+    : `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${uploadOrigin}; frame-src ${contentOrigin}; form-action 'self'; frame-ancestors 'none'; base-uri 'none'`;
   return new cloudfront.ResponseHeadersPolicy(scope, id, {
     securityHeadersBehavior: {
       contentSecurityPolicy: { contentSecurityPolicy: csp, override: true },
@@ -95,6 +98,26 @@ export class HtmlShareStack extends Stack {
       enforceSSL: true,
       removalPolicy: RemovalPolicy.RETAIN,
     });
+
+    // スマホから送る画像の一時置き場。ブラウザが署名付き POST で直接置き、PCが取り込んだら
+    // その場で消す。取り込み忘れは7日で消える。配信（CloudFront）からは読ませず、
+    // Review API が発行する署名付きURLでだけ出し入れする。
+    const uploadBucket = new s3.Bucket(this, 'UploadBucket', {
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      enforceSSL: true,
+      objectOwnership: s3.ObjectOwnership.BUCKET_OWNER_ENFORCED,
+      versioned: false,
+      lifecycleRules: [{ expiration: Duration.days(7), abortIncompleteMultipartUploadAfter: Duration.days(1) }],
+      cors: [{
+        allowedOrigins: [consoleOrigin],
+        allowedMethods: [s3.HttpMethods.POST],
+        allowedHeaders: ['*'],
+        maxAge: 3600,
+      }],
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+    const uploadOrigin = `https://${uploadBucket.bucketRegionalDomainName}`;
 
     const publicKey = new cloudfront.PublicKey(this, 'SigningPublicKey', {
       encodedKey: props.publicKeyPem,
@@ -286,7 +309,8 @@ export class HtmlShareStack extends Stack {
       timeout: Duration.seconds(15),
       logGroup: reviewLogGroup,
       tracing: lambda.Tracing.ACTIVE,
-      bundling: { minify: true, sourceMap: false, target: 'node22' },
+      // 署名付きPOSTとS3の署名付きURLの部品は Lambda の実行環境に入っている保証がないので同梱する
+      bundling: { minify: true, sourceMap: false, target: 'node22', bundleAwsSDK: true },
       environment: {
         ALLOWED_INTERNAL_CIDRS: JSON.stringify(props.allowedInternalCidrs),
         CLOUDFRONT_KEY_PAIR_ID: publicKey.publicKeyId,
@@ -295,9 +319,16 @@ export class HtmlShareStack extends Stack {
         MAXIMUM_SHARE_DAYS: String(props.maximumShareDays),
         PRIVATE_KEY_PARAMETER_NAME: props.privateKeyParameterName,
         REVIEW_TABLE_NAME: reviewTable.tableName,
+        UPLOAD_BUCKET_NAME: uploadBucket.bucketName,
+        UPLOAD_BUCKET_ORIGIN: uploadOrigin,
       },
     });
     reviewTable.grantReadWriteData(reviewFunction);
+    // 署名付きURLはこの Lambda の権限で署名されるので、置く・読む・消すの3つを持たせる
+    reviewFunction.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['s3:PutObject', 's3:GetObject', 's3:DeleteObject'],
+      resources: [uploadBucket.arnForObjects('inbox/*')],
+    }));
     reviewFunction.addToRolePolicy(new iam.PolicyStatement({
       actions: ['ssm:GetParameter'],
       resources: [privateKeyParameter.parameterArn],
@@ -308,7 +339,7 @@ export class HtmlShareStack extends Stack {
     const authOrigin = origins.FunctionUrlOrigin.withOriginAccessControl(authUrl);
     const reviewOrigin = origins.FunctionUrlOrigin.withOriginAccessControl(reviewUrl);
     const consoleS3Origin = origins.S3BucketOrigin.withOriginAccessControl(consoleBucket);
-    const consoleHeaders = securityPolicy(this, 'ConsoleHeaders', false, consoleOrigin, contentOrigin);
+    const consoleHeaders = securityPolicy(this, 'ConsoleHeaders', false, consoleOrigin, contentOrigin, uploadOrigin);
     const common = {
       viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
       cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
@@ -406,5 +437,6 @@ export class HtmlShareStack extends Stack {
     new CfnOutput(this, 'ContentCloudFrontDomain', { value: contentDistribution.distributionDomainName });
     new CfnOutput(this, 'CloudFrontPublicKeyId', { value: publicKey.publicKeyId });
     new CfnOutput(this, 'ReviewTableName', { value: reviewTable.tableName });
+    new CfnOutput(this, 'UploadBucketName', { value: uploadBucket.bucketName });
   }
 }

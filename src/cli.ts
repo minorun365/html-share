@@ -7,12 +7,14 @@ import {
   completeReviews,
   listInbox,
   pair,
+  pullInboxImages,
   pullReviews,
   pushReviews,
   stopWatching,
   watchReviews,
   type ReviewCard,
 } from './review-client.js';
+import { filesForBatch, imagesDir, recentBatches } from './inbox-images.js';
 
 function option(name: string): string | undefined {
   const index = process.argv.indexOf(name);
@@ -44,6 +46,7 @@ Usage:
   html-share review push --session <id> [--file cards.json]
   html-share review pull [--session <id>]
   html-share review inbox
+  html-share review images [--recent]
   html-share review complete <id...>
   html-share review watch --session <id> [--timeout-minutes 240]
   html-share review stop --session <id>`);
@@ -135,7 +138,20 @@ async function main(): Promise<void> {
       return;
     }
     if (action === 'inbox') {
-      const requests = await listInbox(config);
+      const listed = await listInbox(config);
+      // 画像を添えた依頼は、受け取った時点で画像を手元へ取り込み、依頼に置き場を添える
+      const attached = listed.map((item) => item.attachmentBatch).filter((id): id is string => Boolean(id));
+      let imageError: string | undefined;
+      if (attached.length) {
+        try {
+          await pullInboxImages(config, attached);
+        } catch (error) {
+          imageError = error instanceof Error ? error.message : 'Could not download attached images';
+        }
+      }
+      const requests = listed.map((item) => (
+        item.attachmentBatch ? { ...item, images: filesForBatch(item.attachmentBatch) } : item
+      ));
       // Keep requests pending until their independent destination is confirmed.
       const next = requests.length
         ? 'Oldest first. Verify each target repository and follow the inbox skill to launch one session per independent request.'
@@ -143,8 +159,20 @@ async function main(): Promise<void> {
           + ' Record and verify the destination before `html-share review complete <id>`.'
           + ' Keep failed, ambiguous, or waiting requests open. Reuse existing dispatch receipts instead of relaunching.'
           + ' `target` is a nickname hint, not a filesystem path.'
+          + ' Pass the absolute paths in `images` to the destination with the request text so it can read them.'
         : undefined;
-      console.log(JSON.stringify({ ok: true, requests, ...(next ? { next } : {}) }, null, 2));
+      console.log(JSON.stringify({ ok: true, requests, ...(imageError ? { imageError } : {}), ...(next ? { next } : {}) }, null, 2));
+      return;
+    }
+    if (action === 'images') {
+      const pulled = await pullInboxImages(config);
+      const recent = flag('--recent') ? recentBatches(5) : undefined;
+      const next = pulled.length
+        ? 'Open the files in `pulled` to read them. A batch with `taskId` belongs to that inbox request; handle them together.'
+        : recent
+          ? 'No new images. Read the latest batch in `recent`; another pickup may have downloaded it already.'
+          : 'No new images. Run with --recent to list batches that were already downloaded.';
+      console.log(JSON.stringify({ ok: true, dir: imagesDir(), pulled, ...(recent ? { recent } : {}), next }, null, 2));
       return;
     }
     if (action === 'complete') {

@@ -1,6 +1,6 @@
 ---
 name: inbox
-description: Read phone requests from HTML共有くん, route each to its verified project, and automatically start independent sessions. Use for /inbox, $inbox, or an explicit request to pick up phone tasks; not while discussing or changing the inbox itself.
+description: Read phone requests from HTML共有くん, route each to its verified project, and automatically start independent sessions. Use for /inbox, $inbox, an explicit request to pick up phone tasks, or a request to look at images sent from the phone; not while discussing or changing the inbox itself.
 ---
 
 # Inbox
@@ -10,6 +10,8 @@ Use `html-share review inbox` to read waiting requests. Use the CLI rather than 
 ## Route before closing
 
 Identify each request's repository from its text, the optional `target` nickname, README / AGENTS.md, and actual project files. A nickname is not a path. Ask about ambiguous destinations while dispatching the others.
+
+A request may carry phone images in `images` (absolute paths, already downloaded). Pass those paths to the destination with the request text and tell it to open them. If `imageError` is present, keep that request open. When the owner asks to look at images sent from the phone without a request, run `html-share review images --recent` and open the listed files.
 
 A request created from the dashboard archive asks to run `html-share page revive <slug>`. Route it to the project that holds the HTML共有くん config, run the command there, and complete the request once the page is back in the list.
 

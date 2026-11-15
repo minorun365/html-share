@@ -54,6 +54,8 @@
     "@aws-sdk/client-ssm": "3.1112.0",
     "@aws-sdk/cloudfront-signer": "3.1108.0",
     "@aws-sdk/lib-dynamodb": "3.1112.0",
+    "@aws-sdk/s3-presigned-post": "3.1112.0",
+    "@aws-sdk/s3-request-presigner": "3.1112.0",
     "yaml": "2.9.0"
   },
   "devDependencies": {
