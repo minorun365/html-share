@@ -212,6 +212,12 @@ export function checkHtml(source, { baseDir } = {}) {
   const parenHeads = [...body.matchAll(/<h([1-4])\b[^>]*>([\s\S]*?)<\/h\1>/gi)]
     .map((m) => m[2].replace(/<[^>]+>/g, '').replace(/[（(][月火水木金土日祝・]+[）)]/g, '').trim())
     .filter((text) => /[（(]/.test(text));
+  // A Japanese line in question form (ending in か, ですか, ますか) without a question mark reads as AI-written.
+  // Words that merely end in か (ほか, わずか, いくつか) are excluded.
+  const noQ = [...new Set(body.replace(/<(style|script|svg)[\s\S]*?<\/\1>/gi, '').split(/<[^>]+>/).map((t) => t.trim())
+    .filter((t) => /[\u3040-\u30ff\u4e00-\u9fff]/.test(t) && /か$/.test(t)
+      && !/(?:ほ|わず|いくつ|確|静|何|どこ|誰|いつ|なに|どれ|しか|豊|細|鮮|速|愚|穏|僅|浅)か$/.test(t)))];
+  if (noQ.length) warn.push(`${noQ.length} Japanese line(s) in question form without a question mark ("${noQ[0].slice(-20)}"); add ？ or rewrite as a statement`);
   if (parenHeads.length) warn.push(`${parenHeads.length} heading(s) carry a parenthetical ("${parenHeads[0].slice(0, 30)}"); keep the title to one short phrase and move the detail into the text`);
   // Japanese becomes hard to read as soon as two sentences run together in one block, so in Japanese text
   // any two sentences joined without a break are flagged (paragraphs, list items, table cells).
