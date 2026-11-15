@@ -8,9 +8,12 @@
 (() => {
   const WIDE_CAP = 1220;   // これ以上は1行が長すぎて読みにくい
   const SIDE_ROOM = 160;   // 広がっている間も残す左右の余白の合計
+  // 見出し側は「.hero の直下」で拾う。古い版のページは囲みの名前が .hero-in と違ったり、
+  // 囲みが無く h1 などが直下に並んでいたりする。.hero-in だけを広げると、そうしたページで
+  // 本文だけが広がり、見出しが右へずれて見える。
   const widen = () => {
     const targets = document.querySelectorAll(
-      '.wrap, .hero-in, body > main, body > article, body > .container, body > .page',
+      '.wrap, .hero > *, body > main, body > article, body > .container, body > .page',
     );
     for (const el of targets) {
       if (el.dataset.mbWide) continue;
