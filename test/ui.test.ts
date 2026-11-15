@@ -178,6 +178,14 @@ test('folds overflowing tables on the viewing origin without network access', ()
   assert.doesNotMatch(handler, /target: clean\(body\.target[\s\S]{0,80}device/);
 });
 
+test('widens the reading column before the first paint', () => {
+  const tables = readFileSync(path.join(root, 'web', 'mobile-tables.js'), 'utf8');
+  const widenBlock = tables.slice(0, tables.indexOf('})();'));
+  assert.match(widenBlock, /\n  widen\(\);\n  fitFigures\(\);/);
+  assert.doesNotMatch(widenBlock, /addEventListener\(\s*'DOMContentLoaded'/);
+  assert.doesNotMatch(tables, /<\/(script|body)/i);
+});
+
 test('closes share popovers from an overlay, Escape, and a timed toast', () => {
   for (const file of [['web', 'app', 'index.html'], ['web', 'mobile-page-shell.js']]) {
     const source = readFileSync(path.join(root, ...file), 'utf8');
