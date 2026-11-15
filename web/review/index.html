@@ -223,7 +223,14 @@ main {
 }
 .kind-badge.todo { background: #fff1d6; color: #7a4a00; }
 .compose-actions { display: flex; align-items: center; gap: .6rem; margin-top: .6rem; }
-.compose-hint { flex: 1; min-width: 0; color: var(--mut); font-size: .72rem; line-height: 1.5; }
+/* 使い方の案内はカードの外、下に小さく置く。ボタンの間に挟むと、スマホ幅で3行に折れて詰まって見える */
+.compose-hint { margin: -.55rem .3rem 1.1rem; color: var(--mut); font-size: .72rem; line-height: 1.5; }
+#compose-send { margin-left: auto; }
+/* スマホ幅では画像と頼むを同じ高さのボタンで横に並べ、行を埋める */
+@media (max-width: 46rem) {
+  .compose-actions .attach-btn { flex: 1 1 0; justify-content: center; white-space: nowrap; }
+  .compose-actions #compose-send { flex: 1.4 1 0; justify-content: center; margin-left: 0; }
+}
 .compose-actions button {
   flex: none; min-height: 2.6rem; padding: .55rem 1.15rem;
   display: inline-flex; align-items: center; gap: .4rem;
@@ -508,10 +515,10 @@ footer {
       <button class="attach-btn" id="attach-btn" type="button" aria-label="画像を添付">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-7.5 8"/></svg><span id="attach-label">画像</span>
       </button>
-      <span class="compose-hint" id="compose-hint">PCで <strong>/inbox</strong> と打つと、Claudeがここから読み取ります。</span>
       <button type="submit" id="compose-send">頼む<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg></button>
     </div>
   </form>
+  <p class="compose-hint" id="compose-hint">PCで <strong>/inbox</strong> と打つと、Claudeがここから読み取ります。</p>
   <div class="cards" id="request-cards"></div>
 
   <div class="section-head later"><span>Claudeからの確認</span><span class="count" id="active-count">0件</span></div>
