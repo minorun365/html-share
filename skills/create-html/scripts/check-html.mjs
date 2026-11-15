@@ -213,16 +213,27 @@ export function checkHtml(source, { baseDir } = {}) {
     .map((m) => m[2].replace(/<[^>]+>/g, '').replace(/[（(][月火水木金土日祝・]+[）)]/g, '').trim())
     .filter((text) => /[（(]/.test(text));
   if (parenHeads.length) warn.push(`${parenHeads.length} heading(s) carry a parenthetical ("${parenHeads[0].slice(0, 30)}"); keep the title to one short phrase and move the detail into the text`);
-  // A long paragraph with no break is hard to read, above all in Japanese: split it every two sentences or so.
-  const unbroken = [...body.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
-    .map((m) => ({ index: m.index, text: m[1].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').trim() }))
-    .filter(({ text }) => {
-      if (text.includes('\n')) return false;
-      const cjk = /[\u3040-\u30ff\u4e00-\u9fff]/.test(text);
-      const sentences = (text.match(/。|[.!?](?=\s|$)/g) ?? []).length;
-      return cjk ? text.length >= 200 && sentences >= 4 : text.length >= 600 && sentences >= 5;
+  // Japanese becomes hard to read as soon as two sentences run together in one block, so in Japanese text
+  // any two sentences joined without a break are flagged (paragraphs, list items, table cells).
+  // Full stops inside brackets do not end a sentence. English keeps the looser paragraph limit.
+  const sentenceEnds = (s) => {
+    let depth = 0, ends = 0;
+    [...s].forEach((ch, i) => {
+      if ('「（(『【'.includes(ch)) depth++;
+      else if ('」）)』】'.includes(ch)) depth = Math.max(0, depth - 1);
+      else if (ch === '。' && depth === 0 && s.slice(i + 1).trim()) ends++;
     });
-  if (unbroken.length) warn.push(`${unbroken.length} long paragraph(s) with no break (first one in "${sectionAt(body, unbroken[0].index)}"); split each into paragraphs of about two sentences`);
+    return ends;
+  };
+  const unbroken = [...body.replace(/<svg[\s\S]*?<\/svg>/gi, (m) => ' '.repeat(m.length))
+    .matchAll(/<(p|li|td|dd)\b[^>]*>((?:(?!<\/?(?:p|li|td|dd|ul|ol|div)\b)[\s\S])*)/gi)]
+    .flatMap((m) => m[2].replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '').split('\n')
+      .map((text) => ({ index: m.index, text: text.trim() })))
+    .filter(({ text }) => {
+      if (/[\u3040-\u30ff\u4e00-\u9fff]/.test(text)) return text.length >= 60 && sentenceEnds(text) >= 1;
+      return text.length >= 600 && (text.match(/[.!?](?=\s|$)/g) ?? []).length >= 5;
+    });
+  if (unbroken.length) warn.push(`${unbroken.length} block(s) run sentences together without a break (first one in "${sectionAt(body, unbroken[0].index)}"); in Japanese, break the line after each sentence or split the paragraph or item`);
   const tables = (source.match(/<table\b/gi) ?? []).length;
   if (tables > 5) warn.push(`${tables} tables; more than five usually means the structure, not the content, is heavy`);
   // Busy sections: a long table or list usually means rows were appended after each round of feedback.
