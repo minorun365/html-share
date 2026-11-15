@@ -50,6 +50,9 @@ body::before{content:"";position:fixed;inset:0;z-index:-2;pointer-events:none;ba
   -webkit-mask:radial-gradient(circle,transparent 0 62%,#000 62.4%);mask:radial-gradient(circle,transparent 0 62%,#000 62.4%)}
 .wrap{max-width:940px;margin:0 auto;padding:0 max(22px,env(safe-area-inset-left))}
 .wrap p{margin:10px 0}
+.sent{display:block}
+.sent+.sent{margin-top:.55em}
+li .sent+.sent{margin-top:.2em}
 .wrap a{color:var(--blue-mid);text-underline-offset:.2em}
 a:focus-visible{outline:3px solid rgba(240,178,31,.7);outline-offset:3px;border-radius:4px}
 .hero h1,h2,h3,.card>h4{font-family:var(--head)}

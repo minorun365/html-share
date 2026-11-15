@@ -88,7 +88,7 @@ ${BRIEF_DEFS}
       </svg>
       <figcaption>図の題</figcaption>
     </figure>
-    <p>図が何を示し、そこから何が言えるかを二、三文で書く。たとえば三つの段のうち、読み手に届く最後の段だけを濃く塗り、そこが結論だと一目で分かるようにする。前の二段は淡い面と白いタイルにして、主役より目立たせない。</p>
+    <p><span class="sent">図が何を示し、そこから何が言えるかを二、三文で書く。</span><span class="sent">たとえば三つの段のうち、読み手に届く最後の段だけを濃く塗り、そこが結論だと一目で分かるようにする。</span><span class="sent">前の二段は淡い面と白いタイルにして、主役より目立たせない。</span></p>
     <div class="table-wrap"><table>
       <thead><tr><th>項目</th><th>内容</th></tr></thead>
       <tbody><tr><td>案A</td><td>42</td></tr><tr><td>案B</td><td>24</td></tr></tbody>

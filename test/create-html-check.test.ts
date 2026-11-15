@@ -8,8 +8,9 @@ import { checkHtml } from '../skills/create-html/scripts/check-html.mjs';
 
 const template = readFileSync(new URL('../skills/create-html/assets/brief-template.html', import.meta.url), 'utf8');
 // Prose placeholders get sentence-length text, so the filled template is a realistic page rather than a row of labels.
+// Each sentence ends the line, as the Japanese writing rule asks.
 const filled = template.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_, key: string) =>
-  /LEAD|EXPLANATION|BODY/.test(key) ? `サンプル ${key.toLowerCase()} の説明文がここに入る。`.repeat(4) : `サンプル ${key.toLowerCase()}`);
+  /LEAD|EXPLANATION|BODY/.test(key) ? Array(4).fill(`サンプル ${key.toLowerCase()} の説明文がここに入る。`).join('<br>') : `サンプル ${key.toLowerCase()}`);
 
 test('the filled template passes every check', () => {
   const { ng, warn } = checkHtml(filled);
@@ -70,7 +71,7 @@ test('warns when a section has a figure but almost no prose', () => {
 });
 
 test('warns when two or more paragraphs follow one figure', () => {
-  const html = filled.replace(/(<p>サンプル figure_explanation[^<]*<\/p>)/, '$1\n<p>Another paragraph about the same figure.</p>');
+  const html = filled.replace(/(<p>サンプル figure_explanation[\s\S]*?<\/p>)/, '$1\n<p>Another paragraph about the same figure.</p>');
   assert.ok(checkHtml(html).warn.some((line: string) => line.includes('two or more paragraphs follow a figure')));
 });
 
@@ -80,14 +81,16 @@ test('warns about a heading with a parenthetical but allows weekday marks', () =
   assert.ok(!checkHtml(add('<h3>11/13（金）の仕込み</h3>')).warn.some((line: string) => line.includes('carry a parenthetical')));
 });
 
-test('warns about a long paragraph with no break', () => {
+test('warns about Japanese sentences joined without a break', () => {
   const sentence = 'パン屋の朝は早く、四時には窯に火が入ります。';
-  const long = `<p>${sentence.repeat(10)}</p>`;
-  const html = filled.replace('<div class="table-wrap">', `${long}<div class="table-wrap">`);
-  assert.ok(checkHtml(html).warn.some((line: string) => line.includes('long paragraph(s) with no break')));
-  const split = `<p>${sentence.repeat(2)}</p>`.repeat(5);
-  const ok = filled.replace('<div class="table-wrap">', `${split}<div class="table-wrap">`);
-  assert.ok(!checkHtml(ok).warn.some((line: string) => line.includes('long paragraph(s) with no break')));
+  const second = '焼き上がった食パンと丸パンは、粗熱を取ってから開店の六時までに表の棚へ並べます。';
+  const joined = (markup: string) => checkHtml(filled.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`))
+    .warn.some((line: string) => line.includes('run sentences together without a break'));
+  assert.ok(joined(`<p>${sentence}${second}</p>`), 'two sentences in one paragraph');
+  assert.ok(joined(`<ul><li>${sentence}${second}</li></ul>`), 'two sentences in one list item');
+  assert.ok(!joined(`<p>${sentence}<br>${second}</p>`), 'a line break after each sentence');
+  assert.ok(!joined(`<p><span class="sent">${sentence}</span><span class="sent">${second}</span></p>`), 'one span per sentence');
+  assert.ok(!joined(`<p>店長いわく「生地は寝かせる。焦らない。」とのことで、仕込みは前の晩に済ませておきます。</p>`), 'full stops inside brackets');
 });
 
 const breads = ['Sourdough', 'Rye', 'Baguette', 'Brioche', 'Ciabatta', 'Focaccia', 'Bagel', 'Croissant', 'Pretzel', 'Challah'];
@@ -103,7 +106,9 @@ test('warns about a long table and names its section', () => {
 test('warns about a long list but counts nested items separately', () => {
   const long = `<ul>${breads.slice(0, 8).map((name) => `<li>${name}</li>`).join('')}</ul>`;
   assert.ok(checkHtml(insertInSection2(filled, long)).warn.some((line: string) => /list of 8 items/.test(line)));
-  const nested = `<ul><li>Breads<ul>${breads.slice(0, 5).map((name) => `<li>${name}</li>`).join('')}</ul></li><li>Cakes</li><li>Drinks</li></ul>`;
+  const four = `<ul>${breads.slice(0, 4).map((name) => `<li>${name}</li>`).join('')}</ul>`;
+  assert.ok(checkHtml(insertInSection2(filled, four)).warn.some((line: string) => /list of 4 items/.test(line)), 'four items already warn');
+  const nested = `<ul><li>Breads<ul>${breads.slice(0, 3).map((name) => `<li>${name}</li>`).join('')}</ul></li><li>Cakes</li><li>Drinks</li></ul>`;
   assert.deepEqual(checkHtml(insertInSection2(filled, nested)).warn, []);
 });
 
