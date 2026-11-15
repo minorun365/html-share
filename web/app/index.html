@@ -373,19 +373,23 @@ body.searching .chips { display: none; }
 }
 @media (hover: hover) { .tname-btn:hover { text-decoration: underline; } }
 
-/* ── 集中表示：1つのテーマを1枚の広いカードに。タイトルは省略せず折り返す ── */
-.theme.focus { max-width: 56rem; margin: 0 auto; padding-bottom: .6rem; }
-.theme.focus .th { padding: 1rem 1.25rem .6rem; }
-.theme.focus .tname { margin: 0; font-size: 1.05rem; }
-.theme.focus .fday {
-  margin: .9rem 1.25rem .2rem; font-size: .72rem; font-weight: 700; letter-spacing: .06em;
-  color: var(--blue); font-variant-numeric: tabular-nums;
+/* ── 集中表示：1つのテーマを日ごとのカードに分けて縦に積む。タイトルは省略せず折り返す ── */
+.focus { max-width: 56rem; margin: 0 auto; }
+.focus-head { display: flex; align-items: center; gap: .55rem; margin: 0 0 1rem; padding: 0 1.05rem; }
+.focus-head .tname { margin: 0; min-width: 0; font-size: 1.1rem; }
+.focus-head .tcount { white-space: nowrap; margin-left: auto; }
+.focus-head > .star {
+  flex: none; width: 2rem; height: 2rem; margin: -.35rem -.45rem -.35rem -.1rem; font-size: 1rem;
 }
-.theme.focus .row { align-items: flex-start; padding-top: .55rem; padding-bottom: .55rem; }
-.theme.focus .row .dot { margin-top: .5rem; }
-.theme.focus .row .t { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
-.theme.focus .row time { line-height: 1.5rem; }
-.theme.focus .fday + .row-wrap::before { display: none; }
+.focus-day { padding-bottom: .5rem; }
+.focus-day .fday {
+  margin: 0; font-size: .9rem; font-weight: 700; letter-spacing: .02em;
+  color: var(--blue-deep); font-variant-numeric: tabular-nums;
+}
+.focus-day .row { align-items: flex-start; padding-top: .55rem; padding-bottom: .55rem; }
+.focus-day .row .dot { margin-top: .5rem; }
+.focus-day .row .t { white-space: normal; overflow: visible; overflow-wrap: anywhere; }
+.focus-day .row time { line-height: 1.5rem; }
 .filter-note a { color: var(--blue); }
 
 .empty { padding: 4rem 0; text-align: center; color: var(--mut); font-size: .85rem; }
@@ -571,8 +575,7 @@ body.page-controls-hidden #page-actions {
     padding-right: max(1rem, env(safe-area-inset-right, 0px));
     padding-left: max(1rem, env(safe-area-inset-left, 0px));
   }
-  .theme.focus .th { padding: .8rem .9rem .5rem; }
-  .theme.focus .fday { margin-left: .9rem; margin-right: .9rem; }
+  .focus-head { padding: 0 .85rem; }
   .dgroup { margin-bottom: 1.9rem; }
   .theme, .solo { margin-bottom: .9rem; border-radius: .9rem; }
   .th { padding: .65rem .85rem .5rem; }
@@ -1540,16 +1543,17 @@ body.page-controls-hidden #page-actions {
   }
 
   /**
-   * 集中表示：選んだテーマのページを、1枚の広いカードへ新しい順に全部並べる。
-   * 列の幅を気にせず見比べられるよう、タイトルは省略せず折り返し、日付は日ごとの見出しに出す
+   * 集中表示：選んだテーマのページを、日ごとのカードに分けて新しい順に縦へ積む。
+   * テーマ名・件数・ピン・☆はカードの外の見出しに1回だけ置き、各カードの見出しは日付にする。
+   * 列の幅を気にせず見比べられるよう、タイトルは省略せず折り返す
    */
   function renderFocus(items) {
     const [stream] = groupByStream(items);
-    const section = document.createElement('section');
-    section.className = 'theme focus';
+    const wrap = document.createElement('div');
+    wrap.className = 'focus';
 
     const head = document.createElement('div');
-    head.className = 'th';
+    head.className = 'focus-head';
     const name = document.createElement('h2');
     name.className = 'tname';
     name.textContent = stream.label;
@@ -1557,24 +1561,36 @@ body.page-controls-hidden #page-actions {
     count.className = 'tcount';
     count.textContent = `${stream.pages.length}件`;
     head.append(name, count, shelfPinButton(stream), streamStarButton(stream));
-    section.append(head);
+    wrap.append(head);
 
-    let day = null;
+    const days = [];
     for (const page of stream.pages) {
       const label = focusDay(page.date);
-      if (label !== day) {
-        day = label;
-        const dh = document.createElement('div');
-        dh.className = 'fday';
-        dh.textContent = label;
-        section.append(dh);
-      }
-      const row = pageRow(page, { indented: true });
-      const when = row.querySelector('time');
-      if (when) when.textContent = focusTimeFormat.format(new Date(page.date));
-      section.append(row);
+      if (days.at(-1)?.label === label) days.at(-1).pages.push(page);
+      else days.push({ label, pages: [page] });
     }
-    tilesEl.append(section);
+    for (const day of days) {
+      const card = document.createElement('section');
+      card.className = 'theme focus-day';
+      const th = document.createElement('div');
+      th.className = 'th';
+      const dl = document.createElement('h3');
+      dl.className = 'fday';
+      dl.textContent = day.label;
+      const dc = document.createElement('span');
+      dc.className = 'tcount';
+      dc.textContent = `${day.pages.length}件`;
+      th.append(dl, dc);
+      card.append(th);
+      for (const page of day.pages) {
+        const row = pageRow(page, { indented: false });
+        const when = row.querySelector('time');
+        if (when) when.textContent = focusTimeFormat.format(new Date(page.date));
+        card.append(row);
+      }
+      wrap.append(card);
+    }
+    tilesEl.append(wrap);
   }
 
   /** カード見出しのテーマ名から集中表示へ。戻ったときに元のスクロール位置へ帰れるよう覚えておく */
