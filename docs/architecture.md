@@ -48,6 +48,8 @@ Claude Code / Codex
 | `GET /api/device/uploads` | 端末トークン | `ready` の束と、10分で失効する取り出し用の署名付きURLを返す |
 | `POST /api/device/uploads/<id>/done` | 端末トークン | 取り込んだ束の画像と記録を消す |
 
+依頼の本文が2000字を超えると、ブラウザは全文を `text/plain;charset=utf-8` の `text.txt` にして、画像と同じ束へ送ります（`POST /api/owner/uploads` に `text: true` を付けると、画像0枚でも許可証が1つ返ります。画像が先、`inbox/<束>/text.txt` が最後で、上限は2MBです）。依頼の表に入れるのは先頭300字の抜粋と全体の字数の注記だけで、依頼には `attachmentText: true` が付きます。本文が空で全文だけの束なら、既定の文（「添付した全文を読んで」）が入ります。PCでは `html-share review inbox` が、ファイルを画像（`images`）と全文（`texts`）に分けて載せます。
+
 依頼（`POST /api/owner/reviews`）に `attachmentBatch` を付けると、`ready` の束だけを受け付け、依頼に `attachmentBatch` と `attachmentCount` を、束に依頼の `taskId` を書きます。束はDynamoDBの `pk=UPLOAD` に置きます。
 
 ブラウザは送る前に、画像をcanvasで長辺2000pxのJPEGへ描き直します。iPhoneの標準形式（HEIC）を読めないエージェントが多いことと、位置情報などの撮影データを落とすためです。透過部分には白を敷きます。管理面のCSPは、サムネイル用に `img-src blob:` を、直接送るために一時置き場のオリジンを `connect-src` へ足しています。バケットのCORSは管理面のオリジンからのPOSTだけを許可します。

@@ -52,7 +52,7 @@ test('ships the full dashboard UI and inbox wording', () => {
   // 送るボタンの影・縮みを▼と候補へ漏らさない。hidden の▼は display:flex に負けず消える
   assert.doesNotMatch(review, /^\.compose button/m);
   assert.match(review, /\.compose \.target-open\[hidden\] \{ display: none; \}/);
-  assert.match(review, /JSON\.stringify\(\{ question: text, target, /);
+  assert.match(review, /JSON\.stringify\(\{ question: long \? excerptOf\(text\) : text, target, /);
   // 画像はブラウザで JPEG へ描き直し（HEIC を避け、撮影データを落とす）、一時置き場へ直接送ってから依頼に束を添える
   assert.match(review, /accept="image\/\*" multiple/, '画像を複数枚選べる');
   assert.match(review, /canvas\.toBlob\(resolve, 'image\/jpeg'/, '送る前に JPEG へ描き直す');

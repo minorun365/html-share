@@ -20,7 +20,7 @@ import {
 // （x-amz-content-sha256）と大きさの都合で重い画像に向かないので、ここでは1枚ずつの
 // アップロード許可証（署名付き POST）だけを発行し、ブラウザが一時置き場のバケットへ直接送る。
 //
-//   本人（署名Cookie）: POST /api/owner/uploads              許可証を枚数分もらう
+//   本人（署名Cookie）: POST /api/owner/uploads              許可証を枚数分もらう（text: true で全文の .txt も1つ）
 //                       POST /api/owner/uploads/<id>/commit  送り終えた印（届いた枚数を数え直す）
 //   端末（端末トークン）: GET  /api/device/uploads            届いた束と、取り出し用の署名付きURL
 //                       POST /api/device/uploads/<id>/done   取り込んだので消す
@@ -37,10 +37,15 @@ const POST_EXPIRES_SECONDS = 10 * 60;
 const GET_EXPIRES_SECONDS = 10 * 60;
 const BATCH_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const NOTE_MAX = 2000;
+// 長い依頼文（音声メモの文字起こしなど）は、画面が .txt に詰めて束へ1つ添える。
+// 依頼の表に全文を入れず、画像と同じく取り込んだら消える一時置き場を通す。
+export const TEXT_KEY_NAME = 'text.txt';
+export const TEXT_CONTENT_TYPE = 'text/plain;charset=utf-8';
+export const MAX_TEXT_BYTES = 2 * 1024 * 1024;
 
 /** 一時置き場を触る小さな窓口。テストでは偽物に差し替える */
 export interface UploadStore {
-  presignPost(input: { key: string; maxBytes: number; expiresIn: number }): Promise<{ url: string; fields: Record<string, string> }>;
+  presignPost(input: { key: string; maxBytes: number; expiresIn: number; contentType: string }): Promise<{ url: string; fields: Record<string, string> }>;
   exists(key: string): Promise<boolean>;
   presignGet(input: { key: string; expiresIn: number }): Promise<string>;
   remove(keys: string[]): Promise<void>;
@@ -66,6 +71,12 @@ export function uploadKey(batchId: string, index: number): string {
   return `inbox/${batchId}/${String(index + 1).padStart(2, '0')}.jpg`;
 }
 
+export function textKey(batchId: string): string {
+  return `inbox/${batchId}/${TEXT_KEY_NAME}`;
+}
+
+const isTextKey = (key: string): boolean => key.endsWith(`/${TEXT_KEY_NAME}`);
+
 function publicBatch(item: any): any {
   const { pk: _pk, sk: _sk, expiresAt: _expiresAt, ...rest } = item;
   return rest;
@@ -84,12 +95,12 @@ export function s3UploadStore(): UploadStore {
     return value;
   };
   return {
-    async presignPost({ key, maxBytes, expiresIn }) {
+    async presignPost({ key, maxBytes, expiresIn, contentType }) {
       const { url, fields } = await createPresignedPost(s3(), {
         Bucket: bucket(),
         Key: key,
-        Conditions: [['content-length-range', 1, maxBytes], ['eq', '$Content-Type', 'image/jpeg']],
-        Fields: { 'Content-Type': 'image/jpeg' },
+        Conditions: [['content-length-range', 1, maxBytes], ['eq', '$Content-Type', contentType]],
+        Fields: { 'Content-Type': contentType },
         Expires: expiresIn,
       });
       return { url: process.env.UPLOAD_BUCKET_ORIGIN ? `${process.env.UPLOAD_BUCKET_ORIGIN}/` : url, fields };
@@ -123,7 +134,7 @@ export function s3UploadStore(): UploadStore {
 export async function attachableBatch(
   context: Pick<UploadContext, 'ddb' | 'table'>,
   batchId: unknown,
-): Promise<{ batchId: string; count: number } | null> {
+): Promise<{ batchId: string; count: number; hasText: boolean } | null> {
   if (batchId === undefined || batchId === null || batchId === '') return null;
   if (!isBatchId(batchId)) throw Object.assign(new Error('Invalid attachment'), { statusCode: 400 });
   const item = (await context.ddb.send(new GetCommand({
@@ -134,7 +145,9 @@ export async function attachableBatch(
   if (!item || item.status !== 'ready') {
     throw Object.assign(new Error('Attachment is not ready'), { statusCode: 400 });
   }
-  return { batchId: String(batchId), count: Number(item.count) };
+  // count は添付のうち画像の枚数。全文の .txt は数えず、hasText で知らせる
+  const keys: string[] = item.keys ?? [];
+  return { batchId: String(batchId), count: keys.filter((key) => !isTextKey(key)).length, hasText: keys.some(isTextKey) };
 }
 
 /** 依頼に添えた束へ、その依頼の ID を書いておく（PCが束と依頼を結び付けられるように） */
@@ -164,12 +177,15 @@ export async function handleOwnerUploads(
   body: Record<string, any>,
 ): Promise<{ statusCode: number; body: unknown }> {
   if (verb === 'POST' && path === '/api/owner/uploads') {
-    const count = Number(body.count);
-    if (!Number.isInteger(count) || count < 1 || count > MAX_UPLOAD_FILES) {
-      return reply(400, { error: `Send between 1 and ${MAX_UPLOAD_FILES} images` });
+    const count = Number(body.count ?? 0);
+    const withText = body.text === true;
+    if (!Number.isInteger(count) || count < (withText ? 0 : 1) || count > MAX_UPLOAD_FILES) {
+      return reply(400, { error: `Send between ${withText ? 0 : 1} and ${MAX_UPLOAD_FILES} images` });
     }
     const batchId = context.uuid();
+    // 画像が先、全文の .txt が最後
     const keys = Array.from({ length: count }, (_, index) => uploadKey(batchId, index));
+    if (withText) keys.push(textKey(batchId));
     const iso = new Date(context.now * 1000).toISOString();
     await context.ddb.send(new PutCommand({
       TableName: context.table,
@@ -186,7 +202,9 @@ export async function handleOwnerUploads(
     }));
     const uploads = await Promise.all(keys.map(async (key) => ({
       key,
-      ...(await context.store.presignPost({ key, maxBytes: MAX_UPLOAD_BYTES, expiresIn: POST_EXPIRES_SECONDS })),
+      ...(await context.store.presignPost(isTextKey(key)
+        ? { key, maxBytes: MAX_TEXT_BYTES, expiresIn: POST_EXPIRES_SECONDS, contentType: TEXT_CONTENT_TYPE }
+        : { key, maxBytes: MAX_UPLOAD_BYTES, expiresIn: POST_EXPIRES_SECONDS, contentType: 'image/jpeg' })),
     })));
     return reply(201, { batchId, uploads });
   }
@@ -196,11 +214,11 @@ export async function handleOwnerUploads(
     if (!isBatchId(commit[1])) return reply(400, { error: 'Invalid upload ID' });
     const current = await readBatch(context, commit[1]);
     if (!current) return reply(404, { error: 'This upload has expired' });
-    // 途中で電波が切れた分は数えない。届いた画像だけを束に残す
+    // 途中で電波が切れた分は数えない。届いたものだけを束に残す
     const keys: string[] = current.keys ?? [];
     const found = await Promise.all(keys.map((key) => context.store.exists(key)));
     const present = keys.filter((_, index) => found[index]);
-    if (present.length === 0) return reply(400, { error: 'No images were received' });
+    if (present.length === 0) return reply(400, { error: 'No attachments were received' });
     const note = typeof body.note === 'string' ? body.note.trim().slice(0, NOTE_MAX) : '';
     await context.ddb.send(new UpdateCommand({
       TableName: context.table,

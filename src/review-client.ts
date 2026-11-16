@@ -27,7 +27,10 @@ export interface ReviewCard {
   /** スマホから添えた画像の束。images は取り込んだ画像の絶対パス */
   attachmentBatch?: string;
   attachmentCount?: number;
+  /** 長い依頼の全文を .txt で添えた。依頼文は先頭の抜粋で、全文は texts のファイルにある */
+  attachmentText?: boolean;
   images?: string[];
+  texts?: string[];
   responseText?: string;
   updatedAt?: string;
   createdAt?: string;

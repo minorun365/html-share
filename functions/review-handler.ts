@@ -225,11 +225,13 @@ function publicTask(item: any): any {
 
 /** 画像だけを添えて本文を空にした依頼に入れる既定の文 */
 export const IMAGE_ONLY_QUESTION = '添付した画像を見て';
+/** 全文の .txt だけを添えて本文を空にした依頼に入れる既定の文 */
+export const TEXT_ONLY_QUESTION = '添付した全文を読んで';
 
 /** 本人の依頼の本文。画像を添えていれば空でもよく、そのときは既定の文にする */
-export function ownerQuestion(value: unknown, hasAttachment: boolean): string {
+export function ownerQuestion(value: unknown, hasAttachment: boolean, hasText = false): string {
   if (!hasAttachment) return clean(value, 'question', 2000, true);
-  return clean(value, 'question', 2000) || IMAGE_ONLY_QUESTION;
+  return clean(value, 'question', 2000) || (hasText ? TEXT_ONLY_QUESTION : IMAGE_ONLY_QUESTION);
 }
 
 export async function handler(event: any): Promise<any> {
@@ -288,7 +290,7 @@ export async function handler(event: any): Promise<any> {
         const body = parseBody(event);
         // 画像は先に /api/owner/uploads で送り終えておき、その束の ID だけを添える
         const attachment = await attachableBatch({ ddb, table }, body.attachmentBatch);
-        const question = ownerQuestion(body.question, Boolean(attachment));
+        const question = ownerQuestion(body.question, Boolean(attachment), Boolean(attachment?.hasText));
         const id = randomUUID();
         const iso = new Date().toISOString();
         const item = {
@@ -302,7 +304,7 @@ export async function handler(event: any): Promise<any> {
           target: clean(body.target, 'target', 60),
           context: '',
           recommendation: '',
-          ...(attachment ? { attachmentBatch: attachment.batchId, attachmentCount: attachment.count } : {}),
+          ...(attachment ? { attachmentBatch: attachment.batchId, attachmentCount: attachment.count, ...(attachment.hasText ? { attachmentText: true } : {}) } : {}),
           status: 'waiting',
           createdAt: iso,
           updatedAt: iso,

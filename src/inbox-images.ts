@@ -124,7 +124,14 @@ export async function pullImages(options: {
   return pulled;
 }
 
-/** 取り込み済みの束の画像（inbox が依頼に添えるとき） */
+/** 束のファイルを画像と全文（.txt）に分ける。全文は長い依頼の本体 */
+export function attachedFiles(files: string[]): { images?: string[]; texts?: string[] } {
+  const texts = files.filter((file) => file.endsWith('.txt'));
+  const images = files.filter((file) => !file.endsWith('.txt'));
+  return { ...(images.length > 0 ? { images } : {}), ...(texts.length > 0 ? { texts } : {}) };
+}
+
+/** 取り込み済みの束のファイル（inbox が依頼に添えるとき） */
 export function filesForBatch(batchId: string, dir = imagesDir()): string[] {
   return readImageIndex(dir).batches[batchId]?.files?.filter((file) => existsSync(file)) ?? [];
 }

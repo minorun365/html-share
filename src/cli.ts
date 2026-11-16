@@ -14,7 +14,7 @@ import {
   watchReviews,
   type ReviewCard,
 } from './review-client.js';
-import { filesForBatch, imagesDir, recentBatches } from './inbox-images.js';
+import { attachedFiles, filesForBatch, imagesDir, recentBatches } from './inbox-images.js';
 import { newPage, pageTheme } from './new-page.js';
 
 function option(name: string): string | undefined {
@@ -168,7 +168,7 @@ async function main(): Promise<void> {
         }
       }
       const requests = listed.map((item) => (
-        item.attachmentBatch ? { ...item, images: filesForBatch(item.attachmentBatch) } : item
+        item.attachmentBatch ? { ...item, ...attachedFiles(filesForBatch(item.attachmentBatch)) } : item
       ));
       // Keep requests pending until their independent destination is confirmed.
       const next = requests.length
@@ -178,6 +178,7 @@ async function main(): Promise<void> {
           + ' Keep failed, ambiguous, or waiting requests open. Reuse existing dispatch receipts instead of relaunching.'
           + ' `target` is a nickname hint, not a filesystem path.'
           + ' Pass the absolute paths in `images` to the destination with the request text so it can read them.'
+          + ' When a request has `texts`, the request text is only an excerpt; pass the text file paths too so the full text is read.'
         : undefined;
       console.log(JSON.stringify({ ok: true, requests, ...(imageError ? { imageError } : {}), ...(next ? { next } : {}) }, null, 2));
       return;

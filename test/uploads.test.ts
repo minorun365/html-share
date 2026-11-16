@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { IMAGE_ONLY_QUESTION, ownerQuestion } from '../functions/review-handler.ts';
+import { IMAGE_ONLY_QUESTION, TEXT_ONLY_QUESTION, ownerQuestion } from '../functions/review-handler.ts';
 import {
   attachableBatch,
   handleDeviceUploads,
@@ -57,8 +57,8 @@ class FakeStore implements UploadStore {
   objects = new Set<string>();
   removed: string[] = [];
 
-  async presignPost({ key, maxBytes }: { key: string; maxBytes: number }) {
-    return { url: 'https://uploads.example.com/', fields: { key, 'Content-Type': 'image/jpeg', max: String(maxBytes) } };
+  async presignPost({ key, maxBytes, contentType }: { key: string; maxBytes: number; contentType: string }) {
+    return { url: 'https://uploads.example.com/', fields: { key, 'Content-Type': contentType, max: String(maxBytes) } };
   }
 
   async exists(key: string) {
@@ -140,13 +140,15 @@ test('attaches only ready batches to an owner request', async () => {
 
   store.objects.add(pending.uploads[0].key);
   await handleOwnerUploads(context, 'POST', `/api/owner/uploads/${pending.batchId}/commit`, {});
-  assert.deepEqual(await attachableBatch(context, pending.batchId), { batchId: pending.batchId, count: 1 });
+  assert.deepEqual(await attachableBatch(context, pending.batchId), { batchId: pending.batchId, count: 1, hasText: false });
   await linkBatchToTask(context, pending.batchId, 'task-1');
   assert.equal(ddb.items.get(`UPLOAD|${pending.batchId}`).taskId, 'task-1');
 });
 
-test('fills in the question only when images are attached', () => {
+test('fills in the question only when attachments are present', () => {
   assert.equal(ownerQuestion('', true), IMAGE_ONLY_QUESTION);
+  assert.equal(ownerQuestion('', true, true), TEXT_ONLY_QUESTION);
+  assert.equal(ownerQuestion('  check the error  ', true, true), 'check the error');
   assert.equal(ownerQuestion('  check the error  ', true), 'check the error');
   assert.throws(() => ownerQuestion('', false), { statusCode: 400 });
 });
@@ -185,4 +187,45 @@ test('hides batches past their expiry even before the table TTL removes them', a
   await handleOwnerUploads(context, 'POST', `/api/owner/uploads/${batch.batchId}/commit`, {});
   const later = { ...context, now: context.now + 8 * 24 * 60 * 60 };
   assert.equal(((await handleDeviceUploads(later, 'GET', '/api/device/uploads')).body as any).items.length, 0);
+});
+
+test('accepts a text-only batch and signs the full text as text/plain with a 2MB cap', async () => {
+  const { ddb, store, context } = setup();
+  const created = await handleOwnerUploads(context, 'POST', '/api/owner/uploads', { count: 0, text: true });
+  assert.equal(created.statusCode, 201);
+  const { batchId, uploads } = created.body as any;
+  assert.equal(uploads.length, 1);
+  assert.equal(uploads[0].key, `inbox/${batchId}/text.txt`);
+  assert.equal(uploads[0].fields['Content-Type'], 'text/plain;charset=utf-8');
+  assert.equal(uploads[0].fields.max, String(2 * 1024 * 1024));
+  assert.deepEqual(ddb.items.get(`UPLOAD|${batchId}`).keys, [uploads[0].key]);
+
+  store.objects.add(uploads[0].key);
+  const committed = await handleOwnerUploads(context, 'POST', `/api/owner/uploads/${batchId}/commit`, {});
+  assert.deepEqual(committed.body, { batchId, count: 1, missing: 0 });
+  assert.deepEqual(await attachableBatch(context, batchId), { batchId, count: 0, hasText: true });
+});
+
+test('rejects a batch that has neither images nor text', async () => {
+  const { context } = setup();
+  assert.equal((await handleOwnerUploads(context, 'POST', '/api/owner/uploads', { count: 0 })).statusCode, 400);
+  assert.equal((await handleOwnerUploads(context, 'POST', '/api/owner/uploads', {})).statusCode, 400);
+  assert.equal((await handleOwnerUploads(context, 'POST', '/api/owner/uploads', { count: 0, text: false })).statusCode, 400);
+  assert.equal((await handleOwnerUploads(context, 'POST', '/api/owner/uploads', { count: 21, text: true })).statusCode, 400);
+});
+
+test('puts images first and the text file last in a mixed batch, each with its own content type', async () => {
+  const { store, context } = setup();
+  const { batchId, uploads } = (await handleOwnerUploads(context, 'POST', '/api/owner/uploads', { count: 2, text: true })).body as any;
+  assert.deepEqual(uploads.map((upload: any) => upload.key), [
+    `inbox/${batchId}/01.jpg`, `inbox/${batchId}/02.jpg`, `inbox/${batchId}/text.txt`,
+  ]);
+  assert.deepEqual(uploads.map((upload: any) => upload.fields['Content-Type']), [
+    'image/jpeg', 'image/jpeg', 'text/plain;charset=utf-8',
+  ]);
+  assert.equal(uploads[0].fields.max, String(15 * 1024 * 1024));
+
+  for (const upload of uploads) store.objects.add(upload.key);
+  await handleOwnerUploads(context, 'POST', `/api/owner/uploads/${batchId}/commit`, {});
+  assert.deepEqual(await attachableBatch(context, batchId), { batchId, count: 2, hasText: true }, 'the text file is not counted as an image');
 });

@@ -664,8 +664,10 @@ footer {
     const target = request && task.target
       ? `<span class="target-badge" title="${escapeHtml(task.target)}">${escapeHtml(task.target)}</span>`
       : '';
-    const attachBadge = request && task.attachmentCount
-      ? `<span class="attach-badge">画像${Number(task.attachmentCount)}枚</span>` : '';
+    const attachLabels = request
+      ? [task.attachmentText ? '全文つき' : '', task.attachmentCount ? `画像${Number(task.attachmentCount)}枚` : ''].filter(Boolean) : [];
+    const attachBadge = attachLabels.length > 0
+      ? `<span class="attach-badge">${attachLabels.join('・')}</span>` : '';
     card.innerHTML = `
       <div class="meta">
         ${kindBadge}${heading}${target}${attachBadge}
@@ -981,12 +983,31 @@ footer {
     return blob;
   }
 
-  /** 選んだ画像を一時置き場へ直接送り、束の ID と届いた枚数を返す */
-  async function uploadAttachments(progress) {
+  // 依頼の表に入れる本文の上限（サーバーの検査と同じ）。超えた分は全文を .txt で添える
+  const QUESTION_MAX = 2000;
+  const EXCERPT_CHARS = 300;
+
+  /** 長い依頼の本文を、表に入れる抜粋にする（全文は添付の .txt にある） */
+  function excerptOf(text) {
+    return `${text.slice(0, EXCERPT_CHARS)}…\n\n（全${text.length.toLocaleString()}字。全文は添付のテキストにあります）`;
+  }
+
+  /** 選んだ画像（と長い本文の全文）を一時置き場へ直接送り、束の ID と届いた枚数を返す */
+  async function uploadAttachments(progress, fullText = '') {
     const { batchId, uploads } = await api('/owner/uploads', {
-      method: 'POST', body: JSON.stringify({ count: attachments.length }),
+      method: 'POST', body: JSON.stringify({ count: attachments.length, ...(fullText ? { text: true } : {}) }),
     });
     let sent = 0;
+    if (fullText) {
+      progress('全文を送信中');
+      const textUpload = uploads[uploads.length - 1];
+      const form = new FormData();
+      for (const [name, value] of Object.entries(textUpload.fields)) form.append(name, value);
+      form.append('file', new Blob([fullText], { type: 'text/plain;charset=utf-8' }), 'text.txt');
+      const response = await fetch(textUpload.url, { method: 'POST', body: form });
+      // 全文が届かないまま抜粋だけの依頼を置くと中身が欠けるので、ここで止める
+      if (!response.ok) throw new Error('全文を送れませんでした。電波の良い所でもう一度送ってください');
+    }
     for (const [index, item] of attachments.entries()) {
       progress(`画像を送信中 ${index + 1}/${attachments.length}`);
       try {
@@ -998,9 +1019,9 @@ footer {
         if (response.ok) sent += 1;
       } catch { /* 届かなかった分は commit が数え直して外す */ }
     }
-    if (sent === 0) throw new Error('画像を送れませんでした。電波の良い所でもう一度送ってください');
+    if (attachments.length > 0 && sent === 0) throw new Error('画像を送れませんでした。電波の良い所でもう一度送ってください');
     const result = await api(`/owner/uploads/${batchId}/commit`, { method: 'POST', body: '{}' });
-    return { batchId, count: result.count, missing: result.missing };
+    return { batchId, count: result.count - (fullText ? 1 : 0), missing: result.missing };
   }
 
   async function submitRequest(event) {
@@ -1016,16 +1037,18 @@ footer {
     busy = true; send.disabled = true; field.disabled = true; $('attach-btn').disabled = true;
     try {
       let batch = null;
-      if (attachments.length > 0) {
-        batch = await uploadAttachments((message) => { send.firstChild.textContent = message; });
+      const long = text.length > QUESTION_MAX;
+      if (attachments.length > 0 || long) {
+        batch = await uploadAttachments((message) => { send.firstChild.textContent = message; }, long ? text : '');
       }
       const missingNote = batch?.missing ? `（${batch.missing}枚は届きませんでした）` : '';
       if (text) {
         await api('/owner/reviews', {
           method: 'POST',
-          body: JSON.stringify({ question: text, target, ...(batch ? { attachmentBatch: batch.batchId } : {}) }),
+          body: JSON.stringify({ question: long ? excerptOf(text) : text, target, ...(batch ? { attachmentBatch: batch.batchId } : {}) }),
         });
-        toast(`Claudeへの依頼を置きました${batch ? `（画像${batch.count}枚）` : ''}${target ? `（${target}）` : ''}${missingNote}`);
+        const parts = [long ? `全文${text.length.toLocaleString()}字` : '', batch?.count ? `画像${batch.count}枚` : ''].filter(Boolean);
+        toast(`Claudeへの依頼を置きました${parts.length > 0 ? `（${parts.join('・')}）` : ''}${target ? `（${target}）` : ''}${missingNote}`);
       } else {
         // 本文が無ければ依頼にはせず、画像だけをPCへ渡す
         toast(`画像${batch.count}枚をPCへ送りました${missingNote}`);

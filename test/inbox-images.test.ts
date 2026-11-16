@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import {
+  attachedFiles,
   filesForBatch,
   localParts,
   pruneImages,
@@ -89,4 +90,11 @@ test('removes date folders after the keep period and leaves other folders alone'
 
 test('names files after the local date and time', () => {
   assert.deepEqual(localParts('2026-11-15T15:00:00.000Z'), { day: '2026-11-16', time: '000000' });
+});
+
+test('splits a request\'s files into images and full-text files', () => {
+  assert.deepEqual(attachedFiles(['/p/01.jpg', '/p/text.txt', '/p/02.jpg']), { images: ['/p/01.jpg', '/p/02.jpg'], texts: ['/p/text.txt'] });
+  assert.deepEqual(attachedFiles(['/p/text.txt']), { texts: ['/p/text.txt'] });
+  assert.deepEqual(attachedFiles(['/p/01.jpg']), { images: ['/p/01.jpg'] });
+  assert.deepEqual(attachedFiles([]), {});
 });
