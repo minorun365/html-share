@@ -48,6 +48,7 @@ Claude Code、Codex、Cursorなど、手元のどのエージェントからで�
 - [セキュリティ設計](docs/threat-model.md)
 - [進行中フィルター](docs/progress-filter.md)
 - [保持期限と保管庫](docs/retention.md)
+- [大きな図の全画面表示](docs/figure-zoom.md)
 - [リンクプレビュー（OGP）](docs/link-preview.md)
 - [画面のテーマとページの既定スタイル](docs/site-theme.md)
 

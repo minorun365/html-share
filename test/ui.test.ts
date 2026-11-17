@@ -378,3 +378,14 @@ test('compresses responses from the buckets without caching them', () => {
   }
   assert.match(stack, /const common = \{[\s\S]{0,120}cachePolicy: cloudfront\.CachePolicy\.CACHING_DISABLED/);
 });
+
+test('expands data-zoom figures to the full window on click', () => {
+  const zoom = readFileSync(path.join(root, 'web', 'fig-zoom.js'), 'utf8');
+  const bundle = readFileSync(path.join(root, 'src', 'bundle.ts'), 'utf8');
+  assert.match(zoom, /querySelectorAll\('\[data-zoom\]'\)/);
+  assert.match(zoom, /window\.frameElement/);
+  assert.match(zoom, /e\.key === 'Escape'/);
+  assert.doesNotMatch(zoom, /<\/(script|body)/i);
+  assert.match(bundle, /data-zoom\[\\s>=\]/);
+  assert.match(bundle, /fig-zoom\.js/);
+});

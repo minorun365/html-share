@@ -406,9 +406,14 @@ function injectMobileHelpers(html: string): string {
   // 閲覧面は script-src が 'unsafe-inline' data: だけなので、相対パスのJSは読めない。
   // 表とカレンダーの畳み込みはAPIを呼ばない（connect-src 'none' のまま）ので、
   // 中身をインラインで埋め込む。
-  const tag = ['mobile-tables.js', 'mobile-calendar.js', 'pull-to-refresh.js']
+  let tag = ['mobile-tables.js', 'mobile-calendar.js', 'pull-to-refresh.js']
     .map((file) => `<script>${readFileSync(path.join(packageRoot(), 'web', file), 'utf8').trim()}</script>`)
     .join('\n');
+  // 図の拡大は data-zoom の付いた図があるページにだけ埋め込む
+  const zoom = /\sdata-zoom[\s>=]/.test(html)
+    ? `\n<script>${readFileSync(path.join(packageRoot(), 'web', 'fig-zoom.js'), 'utf8').trim()}</script>`
+    : '';
+  tag += zoom;
   if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${tag}\n</body>`);
   return `${html}\n${tag}\n`;
 }
