@@ -213,6 +213,36 @@ body.searching.has-query #search-clear { display: flex; }
 
 .home-content { padding: 1.5rem var(--gutter) calc(3rem + env(safe-area-inset-bottom)); }
 
+/* ── 承認待ちの帯。本人の返事が要る確認があるときだけ、一覧の上に1行で出す ─────
+   右上の小さな印だけでは気づけなかったため。
+   面・枠・影・色付きの札を使わず、区切り線と文字の太さだけで組む（チップやカードと形を分けるため）。
+   色は承認待ちの点（--gold）だけ。入りきらない確認は末尾の「+N」に畳む（fitInboxRail） */
+.inbox-rail { display: flex; align-items: center; gap: 1rem; min-width: 0; margin: 0 0 1.5rem; padding: .15rem 0; }
+.inbox-rail[hidden], body.searching .inbox-rail { display: none; }
+.inbox-rail a { color: inherit; text-decoration: none; }
+.ir-head {
+  flex: none; display: inline-flex; align-items: center; gap: .45rem;
+  font-size: .8rem; font-weight: 600; white-space: nowrap; color: var(--t-title);
+}
+.ir-dot { width: .46rem; height: .46rem; border-radius: 50%; background: var(--gold); }
+.ir-n { font-variant-numeric: tabular-nums; font-weight: 500; opacity: .62; }
+.ir-track { flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden; }
+.ir-item {
+  flex: none; display: inline-flex; align-items: baseline; gap: .45rem; white-space: nowrap;
+  padding: 0 1rem; border-left: 1px solid var(--t-line);
+}
+.ir-item[hidden] { display: none; }
+.ir-t { font-size: .86rem; font-weight: 600; color: var(--t-title); }
+.ir-m { font-size: .72rem; opacity: .6; }
+.ir-item:hover .ir-t { text-decoration: underline; text-underline-offset: .22em; }
+.ir-more .ir-t { color: var(--t-link); }
+@media (max-width: 46rem) {
+  .inbox-rail { margin-bottom: 1.1rem; gap: .7rem; }
+  .ir-label { display: none; }
+  .ir-item { padding: 0 .8rem; }
+}
+
+
 /* ── 日付の区切り。テーマは「そのテーマの最終更新日」でどの区切りに入るかが決まる ── */
 .dgroup { margin-bottom: 2.5rem; }
 .dgroup:last-child { margin-bottom: 0; }
@@ -657,6 +687,10 @@ body.page-controls-hidden #page-actions {
       </header>
       <p class="filter-note" id="filter-note" hidden></p>
       <div class="home-content">
+        <nav class="inbox-rail" id="inbox-rail" aria-label="承認待ち" hidden>
+          <a class="ir-head" href="/review/index.html"><span class="ir-dot"></span><span class="ir-label">承認待ち</span><span class="ir-n" id="inbox-rail-n"></span></a>
+          <div class="ir-track" id="inbox-rail-track"></div>
+        </nav>
         <div id="tiles"></div>
         <div class="trash-bar">
           <button id="trash-toggle" type="button"><span id="trash-label"></span></button>
@@ -874,10 +908,58 @@ body.page-controls-hidden #page-actions {
       const payload = await response.json();
       const open = (payload.items ?? []).filter((item) => item.status !== 'completed');
       $('review-dot').hidden = open.length === 0;
+      // 帯に出すのは、Claudeからの確認で本人の返事を待っているものだけ
+      renderInboxRail(open.filter((item) => item.status === 'waiting' && item.source !== 'owner'));
     } catch (error) {
       console.warn(error);
     }
   }
+
+  // 承認待ちの帯。Claudeからの返事待ちの確認を、新しい順に1行へ並べる。
+  // どの行もインボックスへ飛ぶ。件名の先頭のリポジトリ印（[work] など）は帯では外す
+  const RAIL_KIND = { run: '承認で実行', todo: 'あなたの番' };
+  function renderInboxRail(items) {
+    const rail = $('inbox-rail');
+    const track = $('inbox-rail-track');
+    track.replaceChildren();
+    rail.hidden = items.length === 0;
+    if (!items.length) return;
+    $('inbox-rail-n').textContent = String(items.length);
+    const sorted = [...items].sort((a, b) => String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')));
+    const link = (title, meta, cls) => {
+      const a = document.createElement('a');
+      a.className = `ir-item${cls ? ` ${cls}` : ''}`;
+      a.href = '/review/index.html';
+      const t = document.createElement('span'); t.className = 'ir-t'; t.textContent = title; a.append(t);
+      if (meta) { const m = document.createElement('span'); m.className = 'ir-m'; m.textContent = meta; a.append(m); }
+      return a;
+    };
+    for (const item of sorted) {
+      const title = String(item.title ?? '').replace(/^\[[^\]]+\]\s*/, '') || '確認';
+      track.append(link(title, RAIL_KIND[item.kind] ?? '承認'));
+    }
+    track.append(link('', '', 'ir-more'));
+    fitInboxRail();
+  }
+
+  // 帯の幅に入るだけ並べ、入りきらない確認を末尾の「+N」に畳む。1件目は必ず残す
+  function fitInboxRail() {
+    const rail = $('inbox-rail');
+    if (rail.hidden) return;
+    const track = $('inbox-rail-track');
+    const more = track.querySelector('.ir-more');
+    const items = [...track.querySelectorAll('.ir-item:not(.ir-more)')];
+    items.forEach((el) => { el.hidden = false; });
+    more.hidden = true;
+    let folded = 0;
+    while (track.scrollWidth > track.clientWidth + 1 && folded < items.length - 1) {
+      folded += 1;
+      items[items.length - folded].hidden = true;
+      more.hidden = false;
+      more.querySelector('.ir-t').textContent = `+${folded}`;
+    }
+  }
+  window.addEventListener('resize', fitInboxRail, { passive: true });
 
   async function persistPreferencesRemote() {
     if (!CAN_SYNC) return;
