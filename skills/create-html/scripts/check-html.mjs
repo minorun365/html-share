@@ -251,6 +251,11 @@ export function checkHtml(source, { baseDir } = {}) {
     const rows = (m[0].replace(/<thead\b[\s\S]*?<\/thead>/gi, '').match(/<tr\b/gi) ?? []).length;
     if (rows >= 10) warn.push(`"${sectionAt(body, m.index)}" has a ${rows}-row table; regroup it into category boxes of up to three items, or a figure`);
   }
+  // A day's schedule written as a "time | what to do" table: draw it as a time axis with activity bands plus a vertical timeline.
+  for (const sec of body.matchAll(/<section\b[\s\S]*?<\/section>/gi)) {
+    const timeRows = (sec[0].match(/<tr\b[^>]*>\s*<td\b[^>]*>(?:<[^>]+>)*\s*(?:\S{1,3}\s+)?\d{1,2}:\d{2}/gi) ?? []).length;
+    if (timeRows >= 4) warn.push(`"${sectionAt(body, sec.index)}" has ${timeRows} table rows that start with a time; draw a schedule as a time axis with activity bands and a vertical timeline instead of a table`);
+  }
   // The table of contents is a list of sections, not a list to read, so it is left out (blanked to keep the offsets).
   const noToc = body.replace(/<nav\b[\s\S]*?<\/nav>|<(ol|ul)\b[^>]*class="[^"]*\btoc\b[\s\S]*?<\/\1>/gi, (m) => ' '.repeat(m.length));
   for (const list of listSizes(noToc)) {

@@ -103,6 +103,13 @@ test('warns about a long table and names its section', () => {
   assert.ok(warn.some((line: string) => /10-row table/.test(line) && line.includes('サンプル section_2_title')), JSON.stringify(warn));
 });
 
+test('warns about a schedule written as a time table', () => {
+  const steps = ['6:30', '7:10', '8:00', '9:45'].map((time, i) => `<tr><td>${time}</td><td>${breads[i]} の仕込み</td></tr>`).join('');
+  const { warn } = checkHtml(filled.replace(/<tbody>[\s\S]*?<\/tbody>/, `<tbody>${steps}</tbody>`));
+  assert.ok(warn.some((line: string) => /4 table rows that start with a time/.test(line)), JSON.stringify(warn));
+  assert.ok(!checkHtml(filled).warn.some((line: string) => /start with a time/.test(line)), 'the filled template has no time table');
+});
+
 test('warns about a long list but counts nested items separately', () => {
   const long = `<ul>${breads.slice(0, 8).map((name) => `<li>${name}</li>`).join('')}</ul>`;
   assert.ok(checkHtml(insertInSection2(filled, long)).warn.some((line: string) => /list of 8 items/.test(line)));
