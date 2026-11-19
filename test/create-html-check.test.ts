@@ -71,6 +71,12 @@ test('warns when figures repeat the same shape', () => {
   assert.ok(!checkHtml(filled).warn.some((line: string) => line.includes('share the same shape')));
 });
 
+test('does not count desktop and phone drawings of one figure as repeats', () => {
+  const svg = (a: string) => `<svg viewBox="0 0 10 10"><rect x="1"/><text>${a}</text><rect x="5"/><text>${a}2</text></svg>`;
+  const html = filled.replace('<footer>', `<section><h2>Both widths</h2><figure>${svg('Desktop')}${svg('Phone')}</figure></section><footer>`);
+  assert.ok(!checkHtml(html).warn.some((line: string) => line.includes('share the same shape')));
+});
+
 test('warns when a section has a figure but almost no prose', () => {
   const figureOnly = '<section id="f1"><h2>Figure only</h2><figure><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"/></svg></figure></section>';
   const html = filled.replace('<footer>', figureOnly + '<footer>');

@@ -196,10 +196,19 @@ export function checkHtml(source, { baseDir } = {}) {
   }
   // Enough figures can still read as monotonous when every one is the same shape (two boxes side by side, three times).
   // Compare the order of drawn elements, ignoring coordinates, text, and colors.
+  // SVGs inside one <figure> are variants of the same figure (a desktop and a phone drawing), so they count once.
   const shapeCount = new Map();
-  for (const svg of body.replace(/<svg\b[^>]*class=["'][^"']*\bbrief-defs\b[\s\S]*?<\/svg>/gi, '').match(/<svg\b[\s\S]*?<\/svg>/gi) ?? []) {
-    const sig = (svg.slice(4).match(/<(rect|path|polygon|circle|ellipse|line|polyline|text)\b/gi) ?? []).map((x) => x.toLowerCase()).join(',');
-    if (sig.split(',').length >= 3) shapeCount.set(sig, (shapeCount.get(sig) ?? 0) + 1);
+  const sigOf = (svg) => (svg.slice(4).match(/<(rect|path|polygon|circle|ellipse|line|polyline|text)\b/gi) ?? []).map((x) => x.toLowerCase()).join(',');
+  const figureGroups = [];
+  const outside = body
+    .replace(/<svg\b[^>]*class=["'][^"']*\bbrief-defs\b[\s\S]*?<\/svg>/gi, '')
+    .replace(/<figure\b[\s\S]*?<\/figure>/gi, (fig) => {
+      figureGroups.push(new Set((fig.match(/<svg\b[\s\S]*?<\/svg>/gi) ?? []).map(sigOf)));
+      return '';
+    });
+  for (const svg of outside.match(/<svg\b[\s\S]*?<\/svg>/gi) ?? []) figureGroups.push(new Set([sigOf(svg)]));
+  for (const sigs of figureGroups) {
+    for (const sig of sigs) if (sig.split(',').length >= 3) shapeCount.set(sig, (shapeCount.get(sig) ?? 0) + 1);
   }
   const sameShape = Math.max(0, ...[...shapeCount.values()].filter((n) => n >= 2));
   if (sameShape) {
