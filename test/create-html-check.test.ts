@@ -64,6 +64,13 @@ test('warns when half or more of the sections have no figure', () => {
   assert.ok(checkHtml(html).warn.some((line: string) => line.includes('have no figure')));
 });
 
+test('warns when figures repeat the same shape', () => {
+  const pair = (a: string) => `<section><h2>${a}</h2><figure><svg viewBox="0 0 10 10"><rect x="1"/><text>${a}</text><rect x="5"/><text>${a}2</text></svg></figure></section>`;
+  const html = filled.replace('<footer>', pair('One') + pair('Two') + '<footer>');
+  assert.ok(checkHtml(html).warn.some((line: string) => line.includes('share the same shape')));
+  assert.ok(!checkHtml(filled).warn.some((line: string) => line.includes('share the same shape')));
+});
+
 test('warns when a section has a figure but almost no prose', () => {
   const figureOnly = '<section id="f1"><h2>Figure only</h2><figure><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"/></svg></figure></section>';
   const html = filled.replace('<footer>', figureOnly + '<footer>');

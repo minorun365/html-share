@@ -194,6 +194,17 @@ export function checkHtml(source, { baseDir } = {}) {
   if (!optOut && sections.length >= 3 && bare.length * 2 >= sections.length) {
     warn.push(`${bare.length} of ${sections.length} sections have no figure (${bare.join(', ')}); redraw their cards or lists as a flow, contrast, or breakdown`);
   }
+  // Enough figures can still read as monotonous when every one is the same shape (two boxes side by side, three times).
+  // Compare the order of drawn elements, ignoring coordinates, text, and colors.
+  const shapeCount = new Map();
+  for (const svg of body.replace(/<svg\b[^>]*class=["'][^"']*\bbrief-defs\b[\s\S]*?<\/svg>/gi, '').match(/<svg\b[\s\S]*?<\/svg>/gi) ?? []) {
+    const sig = (svg.slice(4).match(/<(rect|path|polygon|circle|ellipse|line|polyline|text)\b/gi) ?? []).map((x) => x.toLowerCase()).join(',');
+    if (sig.split(',').length >= 3) shapeCount.set(sig, (shapeCount.get(sig) ?? 0) + 1);
+  }
+  const sameShape = Math.max(0, ...[...shapeCount.values()].filter((n) => n >= 2));
+  if (sameShape) {
+    warn.push(`${sameShape} figures share the same shape; pick each shape from its content (bars from zero for sizes, boxes and arrows for flows, a fork for decisions, side-by-side boxes only for contrasts). A deliberate pattern comparison that highlights only what changes is fine`);
+  }
   // The opposite imbalance: a section with figures but almost no prose leaves the reader to guess what each figure means.
   const thin = sections
     .filter((sec) => /<svg\b|<img\b/i.test(sec))
