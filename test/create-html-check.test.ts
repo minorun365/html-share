@@ -204,3 +204,11 @@ test('warns about a v2 figure with no deep fill, and the definitions block is no
   assert.ok(checkHtml(onlyDefs).ng.some((line: string) => /no figure/.test(line)));
   assert.ok(!checkHtml(briefSkeleton({ title: 't' })).warn.some((line: string) => /no deep fill/.test(line)));
 });
+
+test('a card stuffed with prose is flagged, a short card is not', () => {
+  const card = (s: string) => `<div class="card"><h4>題</h4><div class="card-body"><p>${s}</p></div></div>`;
+  const stuffed = filled.replace('</section>', `${card('あ'.repeat(121))}</section>`);
+  assert.ok(checkHtml(stuffed).warn.some((line: string) => /holds 121 characters/.test(line)));
+  const short = filled.replace('</section>', `${card('短い説明です。')}</section>`);
+  assert.ok(!checkHtml(short).warn.some((line: string) => /holds \d+ characters/.test(line)));
+});

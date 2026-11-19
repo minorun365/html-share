@@ -282,6 +282,12 @@ export function checkHtml(source, { baseDir } = {}) {
     // Keep each list to two or three items: from four on, readers mostly stop reading it.
     if (list.items >= 4) warn.push(`"${sectionAt(body, list.index)}" has a list of ${list.items} items; cut or merge it to two or three, split it into category boxes, or draw a sequence as a figure`);
   }
+  // A card is a container for a title and a short note. A card body that runs past 120 characters makes the reader dig
+  // small text out of a box; promote it to an h3 subsection and split it into a table, highlights, or a figure.
+  for (const m of body.matchAll(/<div class="card[ "][^>]*>\s*<h4>([\s\S]*?)<\/h4>\s*<div class="card-body">([\s\S]*?)<\/div>\s*<\/div>/g)) {
+    const chars = m[2].replace(/<[^>]+>/g, '').replace(/\s+/g, '').length;
+    if (chars > 120) warn.push(`card "${m[1].replace(/<[^>]+>/g, '').trim()}" holds ${chars} characters; keep a card to two sentences and move the rest into an h3 subsection with a table, highlights, or a figure`);
+  }
   // List items that open with a bold label and a colon read as a filled-in template.
   const labelled = body.match(/<li\b[^>]*>\s*<(b|strong)\b[^>]*>[^<]{1,30}[：:]\s*<\/\1>/gi) ?? [];
   if (labelled.length) warn.push(`${labelled.length} list item(s) start with a bold label and a colon; rewrite each as one plain sentence at the same level of detail`);
