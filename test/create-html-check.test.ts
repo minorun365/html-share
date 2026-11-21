@@ -94,6 +94,12 @@ test('warns about a heading with a parenthetical but allows weekday marks', () =
   assert.ok(!checkHtml(add('<h3>11/13（金）の仕込み</h3>')).warn.some((line: string) => line.includes('carry a parenthetical')));
 });
 
+test('warns when a phrase promises that something stays as it is', () => {
+  const add = (markup: string) => filled.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`);
+  assert.ok(checkHtml(add('<p>水やりの記録は、今お使いのノートのまま続けられます。</p>')).warn.some((line: string) => line.includes('stays as it is')));
+  assert.ok(!checkHtml(add('<p>水やりの記録は、毎朝ノートへ書き足します。</p>')).warn.some((line: string) => line.includes('stays as it is')));
+});
+
 test('warns about Japanese sentences joined without a break', () => {
   const sentence = 'パン屋の朝は早く、四時には窯に火が入ります。';
   const second = '焼き上がった食パンと丸パンは、粗熱を取ってから開店の六時までに表の棚へ並べます。';

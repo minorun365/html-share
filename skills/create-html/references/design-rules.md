@@ -22,6 +22,7 @@ Everything else stays neutral: quotes, tags, card bodies, column labels. A light
 
 - Put the hero outside `.wrap` so it spans the viewport; align its text with an inner `.hero-in` container.
 - Top padding is `calc(64px + env(safe-area-inset-top, 0px))`. On phones the delivered page overlays page tools at the top left whose lower edge sits at 52 px; less padding puts the title under them.
+- The delivered page overlays two 44 px buttons, one in the top left and one in the top right (about 9 to 53 px from each side, 8 to 52 px from the top). A page that brings its own header or fixed bar instead of the hero still has to keep that strip clear: leave at least 64 px on both sides, and measure the overlap in the rendered page before publishing, because `check-html.mjs` only looks at the hero padding.
 - Write `.hero, .hero * { color: #fff; }`. A parent's color is only inherited, so any later bare rule such as `p { color: ... }` wins over it. Listing tags (`.hero h1, .hero p, ...`) leaves holes the moment a new tag appears.
 - Under white text in the hero, only darkening underlays are safe (`rgba(0,0,0,.35)`). A light underlay, even a translucent white one, disappears where the gradient turns bright. Best of all, keep `code` and long paths out of the hero and put them in the body or footer.
 - Keep the hero to a kicker, the title, one subtitle line, and a short meta block. Do not fill it with pill-shaped chips or button-like links.

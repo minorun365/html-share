@@ -2,7 +2,7 @@
 // 表・列・線の多い全体図は、本文の幅では文字が小さすぎる。本文の幅を超えて広げると
 // ページの流れが崩れる。本文では普通の大きさのまま見せ、クリックで窓いっぱいの重ね画面に出す。
 //
-// 使い方（ページ側）：広げたい図の囲みに data-zoom を付ける。
+// 使い方（ページ側）：広げたい図の囲みに data-zoom を付ける。中身は SVG でも画像（img）でもよい。
 //   <figure data-zoom data-zoom-min="1400"><svg viewBox=…>…</svg><figcaption>…</figcaption></figure>
 //   data-zoom-min は、重ね画面で図を最低この幅（px）で描く値。窓がそれより狭いと横にスクロールする。
 //
@@ -30,7 +30,7 @@
 .mbz-close{flex:none;border:0;border-radius:999px;padding:7px 16px;background:#1f2433;color:#fff;
   font:600 13px/1 -apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;cursor:pointer}
 .mbz-body{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:16px;overscroll-behavior:contain}
-.mbz-body svg{display:block;width:100%;height:auto;max-width:none!important;margin:0!important}
+.mbz-body svg,.mbz-body img{display:block;width:100%;height:auto;max-width:none!important;margin:0!important}
 html.mbz-open,html.mbz-open body{overflow:hidden}`;
   const style = document.createElement('style');
   style.textContent = css;
@@ -55,14 +55,14 @@ html.mbz-open,html.mbz-open body{overflow:hidden}`;
 
   const show = (fig) => {
     if (open) return;
-    const svg = fig.querySelector('svg');
+    const svg = fig.querySelector('svg, img');   // 図の本体。SVG か画像
     if (!svg) return;
     const over = document.createElement('div');
     over.className = 'mbz-over';
     over.setAttribute('role', 'dialog');
     over.setAttribute('aria-modal', 'true');
     const cap = fig.querySelector('figcaption');
-    const title = fig.getAttribute('data-zoom-title') || svg.getAttribute('aria-label') || (cap ? cap.textContent : '図');
+    const title = fig.getAttribute('data-zoom-title') || svg.getAttribute('aria-label') || svg.getAttribute('alt') || (cap ? cap.textContent : '図');
     const bar = document.createElement('div');
     bar.className = 'mbz-bar';
     const t = document.createElement('div');
@@ -109,6 +109,7 @@ html.mbz-open,html.mbz-open body{overflow:hidden}`;
   };
 
   for (const fig of targets) {
+    if (!fig.querySelector('svg, img')) continue;   // 広げる本体が無い囲みにはボタンを出さない
     const hint = document.createElement('button');
     hint.type = 'button';
     hint.className = 'mbz-hint';

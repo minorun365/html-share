@@ -242,6 +242,9 @@ export function checkHtml(source, { baseDir } = {}) {
   const prose = body.replace(/<(style|script)[\s\S]*?<\/\1>/gi, '').replace(/<[^>]+>/g, ' ');
   const bareDates = [...prose.matchAll(/(?<![\d/.])(1[0-2]|0?[1-9])\/(3[01]|[12]\d|0?[1-9])(?![\d/]|\s*[（(][月火水木金土日])/g)].map((m) => m[0]);
   if (bareDates.length) warn.push(`${bareDates.length} date(s) without a weekday ("${[...new Set(bareDates)].slice(0, 3).join('", "')}"); write them as 3/2（月）, computing the weekday with code`);
+  // Promising that nothing has to change ("今の形のまま", "Excelのまま") reads as AI-written; say what the reader does instead.
+  const mama = prose.match(/[^\s。、「」（）]{1,10}のまま/g);
+  if (mama) warn.push(`${mama.length} phrase(s) promise that something stays as it is ("${mama[0]}"); write what the reader actually does instead`);
   if (parenHeads.length) warn.push(`${parenHeads.length} heading(s) carry a parenthetical ("${parenHeads[0].slice(0, 30)}"); keep the title to one short phrase and move the detail into the text`);
   // Japanese becomes hard to read as soon as two sentences run together in one block, so in Japanese text
   // any two sentences joined without a break are flagged (paragraphs, list items, table cells).
