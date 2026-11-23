@@ -245,6 +245,9 @@ export function checkHtml(source, { baseDir } = {}) {
   // Promising that nothing has to change ("今の形のまま", "Excelのまま") reads as AI-written; say what the reader does instead.
   const mama = prose.match(/[^\s。、「」（）]{1,10}のまま/g);
   if (mama) warn.push(`${mama.length} phrase(s) promise that something stays as it is ("${mama[0]}"); write what the reader actually does instead`);
+  // Renaming established IT terms ("本番への配置" for deploy, "通知の係" for a function) reads as AI-written; keep the loanword or product name.
+  const coined = prose.match(/[一-龠ぁ-んァ-ヶ]{1,6}の係|本番への?配置|未配置|配置(後|直後|待ち|しました|します|する)/g);
+  if (coined) warn.push(`${coined.length} phrase(s) rename an established IT term ("${coined[0]}"); write "デプロイ", "Lambda" or the product name as engineers say it`);
   if (parenHeads.length) warn.push(`${parenHeads.length} heading(s) carry a parenthetical ("${parenHeads[0].slice(0, 30)}"); keep the title to one short phrase and move the detail into the text`);
   // Japanese becomes hard to read as soon as two sentences run together in one block, so in Japanese text
   // any two sentences joined without a break are flagged (paragraphs, list items, table cells).

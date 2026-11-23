@@ -100,6 +100,12 @@ test('warns when a phrase promises that something stays as it is', () => {
   assert.ok(!checkHtml(add('<p>水やりの記録は、毎朝ノートへ書き足します。</p>')).warn.some((line: string) => line.includes('stays as it is')));
 });
 
+test('warns when an established IT term is renamed', () => {
+  const add = (markup: string) => filled.replace('<div class="table-wrap">', `${markup}<div class="table-wrap">`);
+  assert.ok(checkHtml(add('<p>予約の通知は、本番へ配置した通知の係が送ります。</p>')).warn.some((line: string) => line.includes('established IT term')));
+  assert.ok(!checkHtml(add('<p>予約の通知は、本番へデプロイした通知の Lambda が送ります。</p>')).warn.some((line: string) => line.includes('established IT term')));
+});
+
 test('warns about Japanese sentences joined without a break', () => {
   const sentence = 'パン屋の朝は早く、四時には窯に火が入ります。';
   const second = '焼き上がった食パンと丸パンは、粗熱を取ってから開店の六時までに表の棚へ並べます。';
