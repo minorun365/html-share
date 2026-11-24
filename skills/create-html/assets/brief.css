@@ -138,6 +138,10 @@ li{margin:7px 0}
 svg{width:100%;height:auto;display:block}
 .fig{border-radius:16px;padding:18px;background:var(--surface);box-shadow:var(--surface-shadow);margin:24px 0}
 .fig figcaption{font-size:12.5px;color:var(--mut);margin-top:12px;text-align:center;line-height:1.7}
+/* Desktop and phone versions of one figure. A tall figure drawn for phones leaves the wide desktop frame half empty, so draw the same content twice:
+   <figure class="fig"><svg class="fig-wide" viewBox="0 0 860 …">…</svg><svg class="fig-tall" viewBox="0 0 340 …">…</svg></figure> */
+.fig .fig-tall{display:none}
+@media (max-width:620px){.fig .fig-wide{display:none}.fig .fig-tall{display:block}}
 img{max-width:100%;height:auto}
 
 footer{margin:56px 0 0;padding:28px 0 40px;border-top:1px solid var(--hair);font-size:12.5px;color:var(--mut);line-height:1.9}
