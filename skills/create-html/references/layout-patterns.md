@@ -23,6 +23,10 @@ Use when the page asks other people to act on something, not when it reports wha
 
 Give each of these sections its own figure, about five in total; one comparison table for the whole page reads as too few visuals. Explanations can be generous, because the readers do not share the background. Leave out your own deliberation, rejected options, and status labels such as "unapproved".
 
+Put only what the meeting itself has to decide (who is assigned, which direction to take) under "What to agree on". Work whose steps are already known and that an owner can simply carry out belongs in the plan, not in the discussion list; mixing the two blurs what the meeting is for.
+
+When the readers are engineers, name each task by the actual feature, setting, permission, or command. A plain-language label such as "the setup work" alone hides what will actually be done; keep plain wording as a gloss next to the technical name.
+
 ## Comparison
 
 Use a table when the same fields repeat across three or more options. Put evaluation criteria in the first column and options across the remaining columns. Highlight one recommendation only when the source supports it.
